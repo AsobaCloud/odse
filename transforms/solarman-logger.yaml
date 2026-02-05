@@ -1,0 +1,76 @@
+# Solarman Logger to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+
+transform:
+  name: solarman-logger
+  version: "1.0"
+  oem: Solarman
+  description: Transform Solarman data logger CSV exports to ODS-E format
+
+input_schema:
+  format: csv
+  encoding: utf-8
+  datetime_format: "%Y-%m-%d %H:%M:%S"
+  columns:
+    - name: update_time
+      aliases: ["Update Time", "Time", "Timestamp"]
+      type: datetime
+      required: true
+    - name: generation
+      aliases: ["Generation(kWh)", "Total Generation", "Cumulative Energy"]
+      type: float
+      required: true
+      description: Cumulative energy reading
+    - name: device_state
+      aliases: ["Device State", "Status", "State"]
+      type: string
+      required: false
+    - name: power
+      aliases: ["Power(W)", "Active Power", "Output Power"]
+      type: float
+      required: false
+
+output_mapping:
+  timestamp:
+    source: input.update_time
+    transform: to_iso8601
+    timezone: input
+  kWh:
+    source: input.generation
+    transform: delta
+    description: Convert cumulative to interval delta
+  error_type:
+    function: map_device_state
+    input: input.device_state
+
+device_state_mapping:
+  normal:
+    - "Normal"
+    - "Operating"
+    - "1"
+    - "Online"
+  warning:
+    - "Warning"
+    - "Degraded"
+  fault:
+    - "Fault"
+    - "Error"
+    - "Alarm"
+  offline:
+    - "Offline"
+    - "Disconnected"
+    - "0"
+    - "No Data"
+  standby:
+    - "Standby"
+    - "Idle"
+    - "Waiting"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+  temporal:
+    expected_interval: "5min"
+    max_gap: "4h"

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/asset-metadata.json",
+  "title": "ODS-E Asset Metadata",
+  "description": "Energy asset configuration and location",
+  "type": "object",
+  "required": ["asset_id", "location", "capacity_kw", "oem"],
+  "properties": {
+    "asset_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Unique identifier for the asset"
+    },
+    "location": {
+      "type": "object",
+      "required": ["latitude", "longitude", "timezone"],
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone identifier (e.g., Africa/Johannesburg)"
+        },
+        "region": {
+          "type": "string",
+          "description": "Administrative region"
+        },
+        "grid_connection_point": {
+          "type": "string",
+          "description": "Grid connection identifier"
+        }
+      }
+    },
+    "capacity_kw": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Nameplate capacity in kilowatts"
+    },
+    "oem": {
+      "type": "string",
+      "description": "Original equipment manufacturer"
+    },
+    "model": {
+      "type": "string",
+      "description": "Equipment model identifier"
+    },
+    "serial_number": {
+      "type": "string",
+      "description": "Manufacturer serial number"
+    },
+    "commissioning_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 date of commissioning"
+    },
+    "ppa_id": {
+      "type": "string",
+      "description": "Associated power purchase agreement"
+    }
+  }
+}

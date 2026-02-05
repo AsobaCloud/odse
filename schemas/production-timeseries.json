@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/production-timeseries.json",
+  "title": "ODS-E Production Timeseries",
+  "description": "Standardized energy production reading from IoT devices",
+  "type": "object",
+  "required": ["timestamp", "kWh", "error_type"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with timezone"
+    },
+    "kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Active energy in kilowatt-hours"
+    },
+    "error_type": {
+      "type": "string",
+      "enum": ["normal", "warning", "critical", "fault", "offline", "standby", "unknown"],
+      "description": "Standardized error classification"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "Original OEM error code (preserved for reference)"
+    },
+    "kVArh": {
+      "type": "number",
+      "description": "Reactive energy in kilovolt-ampere reactive hours"
+    },
+    "kVA": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Apparent power in kilovolt-amperes"
+    },
+    "PF": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Power factor"
+    }
+  },
+  "additionalProperties": false
+}

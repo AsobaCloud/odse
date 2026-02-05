@@ -1,0 +1,57 @@
+# Enphase Envoy to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+
+transform:
+  name: enphase-envoy
+  version: "1.0"
+  oem: Enphase
+  description: Transform Enphase Envoy JSON data to ODS-E format
+
+input_schema:
+  format: json
+  structure: array
+  fields:
+    - name: end_at
+      type: unix_timestamp
+      required: true
+    - name: wh_del
+      type: integer
+      required: true
+      description: Energy delivered in watt-hours
+    - name: devices_reporting
+      type: integer
+      required: false
+      description: Number of microinverters reporting
+
+output_mapping:
+  timestamp:
+    source: input.end_at
+    transform: unix_to_iso8601
+  kWh:
+    source: input.wh_del
+    transform: divide
+    divisor: 1000
+  error_type:
+    function: derive_status
+    inputs: [input.devices_reporting, expected_devices]
+  error_code:
+    value: null
+
+status_derivation:
+  normal:
+    condition: "input.devices_reporting >= expected_devices * 0.95"
+  warning:
+    condition: "input.devices_reporting >= expected_devices * 0.80"
+  critical:
+    condition: "input.devices_reporting > 0"
+  offline:
+    condition: "input.devices_reporting == 0 OR input.devices_reporting == null"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+  temporal:
+    expected_interval: "15min"
+    max_gap: "4h"

@@ -1,0 +1,103 @@
+# Huawei FusionSolar to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+
+transform:
+  name: huawei-fusionsolar
+  version: "1.0"
+  oem: Huawei
+  description: Transform Huawei FusionSolar CSV exports to ODS-E format
+
+input_schema:
+  format: csv
+  encoding: utf-8
+  columns:
+    - name: timestamp
+      aliases: ["Time", "Timestamp", "time"]
+      type: datetime
+      required: true
+    - name: power
+      aliases: ["Active Power(kW)", "Power", "power_kw"]
+      type: float
+      required: true
+    - name: inverter_state
+      aliases: ["Inverter State", "State", "status"]
+      type: integer
+      required: true
+    - name: run_state
+      aliases: ["Running State", "Run State"]
+      type: integer
+      required: false
+      default: 1
+    - name: temperature
+      aliases: ["Temperature", "Temp"]
+      type: float
+      required: false
+    - name: voltage
+      aliases: ["Voltage", "DC Voltage"]
+      type: float
+      required: false
+    - name: irradiance
+      aliases: ["Irradiance", "POA Irradiance"]
+      type: float
+      required: false
+
+output_mapping:
+  timestamp:
+    source: input.timestamp
+    transform: to_iso8601
+  kWh:
+    source: input.power
+    transform: multiply
+    factor: interval_hours
+  error_type:
+    function: map_error_code
+    inputs: [input.inverter_state, input.run_state]
+  error_code:
+    source: input.inverter_state
+    transform: to_string
+
+error_code_mapping:
+  normal:
+    - 0      # Standby: initializing
+    - 1      # Standby: detecting insulation
+    - 2      # Standby: detecting irradiation
+    - 3      # Standby: grid detecting
+    - 256    # Starting
+    - 512    # Running
+    - 1025   # Running: power limited
+    - 1026   # Running: self-derating
+    - 1280   # Shutdown: fault
+    - 1281   # Shutdown: command
+    - 1536   # Grid dispatch
+    - 1792   # Running: cos phi-P curve
+    - 2048   # Running: Q-U curve
+    - 2304   # Running: PF-U curve
+    - 40960  # Running: power limited (grid)
+    - 49152  # Running
+  warning:
+    - 513    # Running: grid over-voltage
+    - 514    # Running: grid under-voltage
+    - 772    # Running: frequency limited
+    - 773    # Running: temperature limited
+    - 774    # Running: power limited
+  critical:
+    - 768    # Shutdown: high string voltage
+    - 770    # Shutdown: DC arc fault
+    - 771    # Shutdown: grid relay fault
+    - 45056  # Emergency stop
+  fault:
+    - 769    # Shutdown: residual current fault
+    - 1024   # Shutdown: grid lost
+  offline:
+    condition: "no_data_received"
+  standby:
+    condition: "input.power == 0 AND is_nighttime(timestamp, location)"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+  temporal:
+    expected_interval: "5min"
+    max_gap: "4h"
