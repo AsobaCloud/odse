@@ -1,0 +1,330 @@
+# Fronius Solar API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://www.fronius.com/~/downloads/Solar%20Energy/Operating%20Instructions/42,0410,2012.pdf
+
+transform:
+  name: fronius-solar-api
+  version: "1.0"
+  oem: Fronius
+  description: Transform Fronius Solar API (local inverter) data to ODS-E format
+
+input_schema:
+  format: json
+  api_type: local  # Direct inverter access via local network
+  api_versions: ["v0", "v1"]
+  base_url: "http://{inverter_ip}/solar_api/v1"
+  authentication:
+    type: none  # Local API typically unauthenticated
+
+  endpoints:
+    power_flow_realtime:
+      path: "/GetPowerFlowRealtimeData.fcgi"
+      method: GET
+      description: Summary of current power flow - fastest endpoint
+      response:
+        Body:
+          Data:
+            Site:
+              P_PV: float           # PV power generation (W), null if not producing
+              P_Load: float         # Load consumption (W), negative = consuming
+              P_Grid: float         # Grid exchange (W), positive = export, negative = import
+              P_Akku: float         # Battery power (W), positive = charging
+              E_Day: float          # Daily energy (Wh)
+              E_Year: float         # Yearly energy (Wh)
+              E_Total: float        # Lifetime energy (Wh)
+              rel_Autonomy: float   # Autonomy percentage (0-100)
+              rel_SelfConsumption: float  # Self-consumption percentage (0-100)
+              Meter_Location: string
+              Mode: string          # "produce-only", "meter", "vague-meter", "bidirectional"
+              BatteryStandby: boolean
+            Inverters:
+              "1":                  # Inverter ID
+                P: float            # Current power (W)
+                E_Day: float        # Daily energy (Wh)
+                E_Year: float       # Yearly energy (Wh)
+                E_Total: float      # Lifetime energy (Wh)
+                Battery_Mode: string
+        Head:
+          Timestamp: datetime       # ISO 8601
+          Status:
+            Code: integer           # 0 = OK
+            Reason: string
+            UserMessage: string
+
+    inverter_realtime:
+      path: "/GetInverterRealtimeData.cgi"
+      method: GET
+      params:
+        Scope: string               # Device, System
+        DeviceId: integer           # Inverter ID (optional)
+        DataCollection: string      # CommonInverterData, 3PInverterData, MinMaxInverterData
+      response:
+        Body:
+          Data:
+            PAC:
+              Value: float          # AC power (W)
+              Unit: string          # W
+            SAC:
+              Value: float          # Apparent power (VA)
+              Unit: string          # VA
+            IAC:
+              Value: float          # AC current (A)
+              Unit: string          # A
+            UAC:
+              Value: float          # AC voltage (V)
+              Unit: string          # V
+            FAC:
+              Value: float          # Grid frequency (Hz)
+              Unit: string          # Hz
+            IDC:
+              Value: float          # DC current (A)
+              Unit: string          # A
+            UDC:
+              Value: float          # DC voltage (V)
+              Unit: string          # V
+            DAY_ENERGY:
+              Value: float          # Daily energy (Wh)
+              Unit: string          # Wh
+            YEAR_ENERGY:
+              Value: float          # Yearly energy (Wh)
+              Unit: string          # Wh
+            TOTAL_ENERGY:
+              Value: float          # Lifetime energy (Wh)
+              Unit: string          # Wh
+            DeviceStatus:
+              StatusCode: integer
+              MgmtTimerRemainingTime: integer
+              ErrorCode: integer
+              LEDColor: integer
+              LEDState: integer
+              StateToReset: boolean
+
+    archive_data:
+      path: "/GetArchiveData.cgi"
+      method: GET
+      params:
+        Scope: string               # System, Device
+        StartDate: date             # YYYY-MM-DD
+        EndDate: date               # YYYY-MM-DD
+        Channel: string             # EnergyReal_WAC_Sum_Produced, etc.
+      response:
+        Body:
+          Data:
+            "inverter/1":
+              Data:
+                EnergyReal_WAC_Sum_Produced:
+                  Values:
+                    "0": float      # Value at interval 0
+                    "300": float    # Value at interval 300 (5 min)
+                  Unit: string      # Wh
+                Current_DC_String_1:
+                  Values: object
+                  Unit: string      # A
+                Voltage_DC_String_1:
+                  Values: object
+                  Unit: string      # V
+
+    meter_realtime:
+      path: "/GetMeterRealtimeData.cgi"
+      method: GET
+      params:
+        Scope: string               # Device, System
+        DeviceId: integer
+      response:
+        Body:
+          Data:
+            PowerReal_P_Sum: float           # Total real power (W)
+            PowerReal_P_Phase_1: float       # Phase 1 real power (W)
+            PowerReal_P_Phase_2: float       # Phase 2 real power (W)
+            PowerReal_P_Phase_3: float       # Phase 3 real power (W)
+            PowerApparent_S_Sum: float       # Total apparent power (VA)
+            PowerApparent_S_Phase_1: float   # Phase 1 apparent power (VA)
+            PowerApparent_S_Phase_2: float   # Phase 2 apparent power (VA)
+            PowerApparent_S_Phase_3: float   # Phase 3 apparent power (VA)
+            PowerReactive_Q_Sum: float       # Total reactive power (VAR)
+            PowerFactor_Sum: float           # Power factor
+            EnergyReal_WAC_Sum_Produced: float  # Produced energy (Wh)
+            EnergyReal_WAC_Sum_Consumed: float  # Consumed energy (Wh)
+            Voltage_AC_Phase_1: float        # Phase 1 voltage (V)
+            Voltage_AC_Phase_2: float        # Phase 2 voltage (V)
+            Voltage_AC_Phase_3: float        # Phase 3 voltage (V)
+            Current_AC_Phase_1: float        # Phase 1 current (A)
+            Current_AC_Phase_2: float        # Phase 2 current (A)
+            Current_AC_Phase_3: float        # Phase 3 current (A)
+            Frequency_Phase_Average: float   # Grid frequency (Hz)
+
+output_mapping:
+  # From power_flow_realtime (fastest, recommended for real-time)
+  from_power_flow:
+    timestamp:
+      source: input.Head.Timestamp
+      transform: to_iso8601
+    kW:
+      source: input.Body.Data.Site.P_PV
+      transform: divide_by_1000
+      null_handling: zero  # null means not producing
+    kWh:
+      source: input.Body.Data.Site.E_Day
+      transform: divide_by_1000
+      description: Daily energy in kWh
+    error_type:
+      function: infer_from_status_and_power
+      inputs: [input.Head.Status.Code, input.Body.Data.Site.P_PV]
+    error_code:
+      source: input.Head.Status.Code
+      transform: to_string
+
+  # From inverter_realtime (detailed inverter data)
+  from_inverter_realtime:
+    timestamp:
+      source: input.Head.Timestamp
+      transform: to_iso8601
+    kW:
+      source: input.Body.Data.PAC.Value
+      transform: divide_by_1000
+    kVA:
+      source: input.Body.Data.SAC.Value
+      transform: divide_by_1000
+    kWh:
+      source: input.Body.Data.DAY_ENERGY.Value
+      transform: divide_by_1000
+    voltage_ac:
+      source: input.Body.Data.UAC.Value
+      unit: V
+    current_ac:
+      source: input.Body.Data.IAC.Value
+      unit: A
+    frequency:
+      source: input.Body.Data.FAC.Value
+      unit: Hz
+    voltage_dc:
+      source: input.Body.Data.UDC.Value
+      unit: V
+    current_dc:
+      source: input.Body.Data.IDC.Value
+      unit: A
+    PF:
+      function: calculate_power_factor
+      inputs: [input.Body.Data.PAC.Value, input.Body.Data.SAC.Value]
+      description: PF = P / S (real power / apparent power)
+    error_type:
+      function: map_status_code
+      inputs: [input.Body.Data.DeviceStatus.StatusCode]
+    error_code:
+      source: input.Body.Data.DeviceStatus.ErrorCode
+      transform: to_string
+
+  # From meter_realtime (grid meter data with power factor)
+  from_meter_realtime:
+    timestamp:
+      source: input.Head.Timestamp
+      transform: to_iso8601
+    kW:
+      source: input.Body.Data.PowerReal_P_Sum
+      transform: divide_by_1000
+    kVA:
+      source: input.Body.Data.PowerApparent_S_Sum
+      transform: divide_by_1000
+    kVAr:
+      source: input.Body.Data.PowerReactive_Q_Sum
+      transform: divide_by_1000
+    PF:
+      source: input.Body.Data.PowerFactor_Sum
+      description: Power factor directly from meter
+    kWh:
+      source: input.Body.Data.EnergyReal_WAC_Sum_Produced
+      transform: divide_by_1000
+    voltage_ac:
+      function: average
+      inputs:
+        - input.Body.Data.Voltage_AC_Phase_1
+        - input.Body.Data.Voltage_AC_Phase_2
+        - input.Body.Data.Voltage_AC_Phase_3
+      description: Average of 3-phase voltages
+    frequency:
+      source: input.Body.Data.Frequency_Phase_Average
+      unit: Hz
+    error_type:
+      value: normal
+      description: Meter data implies normal operation
+
+status_mapping:
+  status_code_to_error_type:
+    0: normal       # OK / Startup
+    1: normal       # Running
+    2: normal       # Running
+    3: normal       # Running
+    4: normal       # Running
+    5: normal       # Running
+    6: normal       # Running
+    7: standby      # Standby
+    8: standby      # Boot loading
+    9: fault        # Error
+    10: offline     # No connection
+    11: warning     # Firmware update
+    12: warning     # AFCI event
+
+  led_state_to_error_type:
+    0: offline      # Off
+    1: standby      # Blinking
+    2: normal       # On
+
+calculations:
+  power_factor:
+    description: Calculate PF from real and apparent power
+    formula: "PAC / SAC if SAC > 0 else 1.0"
+    bounds: [0, 1]
+
+  wh_to_kwh:
+    description: Convert Wh to kWh
+    formula: "value / 1000.0"
+
+  interval_energy:
+    description: Calculate interval energy from archive data
+    formula: "current_value - previous_value"
+    description: Archive values are cumulative
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+    kW:
+      min: 0
+    PF:
+      min: 0
+      max: 1
+    voltage_ac:
+      min: 0
+      max: 500
+    frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["5s", "1min", "5min"]  # Local API supports fast polling
+    max_gap: "1h"
+
+api_characteristics:
+  type: local_network
+  latency: low
+  rate_limit: none  # Local API, no cloud rate limits
+  availability: inverter_must_be_online
+  data_retention: limited  # Archive data depends on Datalogger storage
+
+notes: |
+  Fronius Solar API is a local REST API accessible directly from the inverter
+  via the local network. No cloud authentication required.
+
+  Recommended endpoints by use case:
+  - Real-time monitoring: GetPowerFlowRealtimeData (fastest, summary view)
+  - Detailed inverter data: GetInverterRealtimeData (includes DC values)
+  - Meter/grid data: GetMeterRealtimeData (includes power factor, 3-phase)
+  - Historical data: GetArchiveData (limited by Datalogger storage)
+
+  Power flow signs:
+  - P_PV: Always positive (generation)
+  - P_Load: Negative (consumption)
+  - P_Grid: Positive = export, Negative = import
+  - P_Akku: Positive = charging, Negative = discharging
+
+  For ODS-E compliance, GetMeterRealtimeData provides the most complete data
+  including power factor and reactive power when a Fronius Smart Meter is installed.

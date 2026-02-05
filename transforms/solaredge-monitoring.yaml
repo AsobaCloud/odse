@@ -1,0 +1,220 @@
+# SolarEdge Monitoring API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://knowledge-center.solaredge.com/sites/kc/files/se_monitoring_api.pdf
+
+transform:
+  name: solaredge-monitoring
+  version: "1.0"
+  oem: SolarEdge
+  description: Transform SolarEdge Monitoring API data to ODS-E format
+
+input_schema:
+  format: json
+  api_base: "https://monitoringapi.solaredge.com"
+  authentication:
+    type: api_key
+    parameter: api_key
+    location: query
+
+  endpoints:
+    site_power:
+      path: "/site/{siteId}/power"
+      method: GET
+      params:
+        startTime: datetime
+        endTime: datetime
+      response:
+        power:
+          timeUnit: string  # QUARTER_OF_AN_HOUR, HOUR, DAY, WEEK, MONTH, YEAR
+          unit: string      # W
+          measuredBy: string
+          values:
+            - date: datetime  # "2013-06-04 14:00:00"
+              value: float    # Power in Watts
+
+    site_energy:
+      path: "/site/{siteId}/energy"
+      method: GET
+      params:
+        startDate: date
+        endDate: date
+        timeUnit: string  # QUARTER_OF_AN_HOUR, HOUR, DAY, WEEK, MONTH, YEAR
+      response:
+        energy:
+          timeUnit: string
+          unit: string      # Wh
+          measuredBy: string
+          values:
+            - date: datetime
+              value: float    # Energy in Wh
+
+    inverter_data:
+      path: "/equipment/{siteId}/{serialNumber}/data"
+      method: GET
+      params:
+        startTime: datetime
+        endTime: datetime
+      response:
+        data:
+          count: integer
+          telemetries:
+            - date: datetime
+              totalActivePower: float      # W
+              totalEnergy: float           # Wh (lifetime)
+              dcVoltage: float             # V
+              temperature: float           # °C
+              inverterMode: string         # MPPT, OFF, SLEEPING, etc.
+              operationMode: integer
+              powerLimit: float            # %
+              L1Data:
+                acCurrent: float           # A
+                acVoltage: float           # V
+                acFrequency: float         # Hz
+                activePower: float         # W
+                apparentPower: float       # VA
+                reactivePower: float       # VAR
+                cosPhi: float              # Power factor
+
+output_mapping:
+  # From site_power endpoint
+  from_site_power:
+    timestamp:
+      source: input.values[].date
+      transform: to_iso8601
+      description: Convert SolarEdge datetime format to ISO 8601
+    kW:
+      source: input.values[].value
+      transform: divide_by_1000
+      description: Convert W to kW
+    error_type:
+      function: infer_from_power
+      inputs: [input.values[].value]
+      description: Infer status from power value
+
+  # From site_energy endpoint
+  from_site_energy:
+    timestamp:
+      source: input.values[].date
+      transform: to_iso8601
+    kWh:
+      source: input.values[].value
+      transform: divide_by_1000
+      description: Convert Wh to kWh
+    error_type:
+      value: normal
+      description: Energy readings imply normal operation
+
+  # From inverter_data endpoint (preferred - most complete)
+  from_inverter_data:
+    timestamp:
+      source: input.telemetries[].date
+      transform: to_iso8601
+    kWh:
+      function: calculate_interval_energy
+      inputs: [input.telemetries[].totalActivePower, interval_hours]
+      description: Calculate energy from power * interval
+    kW:
+      source: input.telemetries[].totalActivePower
+      transform: divide_by_1000
+    kVA:
+      source: input.telemetries[].L1Data.apparentPower
+      transform: divide_by_1000
+    kVAr:
+      source: input.telemetries[].L1Data.reactivePower
+      transform: divide_by_1000
+    PF:
+      source: input.telemetries[].L1Data.cosPhi
+      description: Power factor directly from inverter
+    voltage_ac:
+      source: input.telemetries[].L1Data.acVoltage
+      unit: V
+    current_ac:
+      source: input.telemetries[].L1Data.acCurrent
+      unit: A
+    frequency:
+      source: input.telemetries[].L1Data.acFrequency
+      unit: Hz
+    voltage_dc:
+      source: input.telemetries[].dcVoltage
+      unit: V
+    temperature:
+      source: input.telemetries[].temperature
+      unit: C
+    error_type:
+      function: map_inverter_mode
+      inputs: [input.telemetries[].inverterMode]
+    error_code:
+      source: input.telemetries[].operationMode
+      transform: to_string
+
+status_mapping:
+  inverter_mode_to_error_type:
+    MPPT: normal
+    ON: normal
+    PRODUCTION: normal
+    OFF: offline
+    SLEEPING: standby
+    STARTING: standby
+    SHUTTING_DOWN: standby
+    STANDBY: standby
+    FAULT: fault
+    ERROR: fault
+    MAINTENANCE: warning
+    LOCKED_GRID: warning
+    LOCKED_INTERNAL: warning
+    NIGHT_MODE: standby
+
+calculations:
+  interval_energy:
+    description: Calculate energy from power reading
+    formula: "(power_w / 1000.0) * interval_hours"
+    default_interval: 0.25  # 15 minutes = 0.25 hours
+
+  wh_to_kwh:
+    description: Convert Wh to kWh
+    formula: "value / 1000.0"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    kW:
+      min: 0
+      max_formula: "capacity_kw * 1.1"
+    PF:
+      min: 0
+      max: 1
+    voltage_ac:
+      min: 0
+      max: 500
+    frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["15min", "1h", "1d"]
+    max_gap: "24h"
+
+api_limits:
+  site_power:
+    max_period: "1 month"
+    rate_limit: "300 requests/day"
+  site_energy:
+    max_period: "1 year"
+    rate_limit: "300 requests/day"
+  inverter_data:
+    max_period: "1 week"
+    rate_limit: "300 requests/day"
+    description: Most detailed but limited to 1-week queries
+
+notes: |
+  SolarEdge Monitoring API provides multiple endpoints with different granularity:
+  - site_power: Real-time power at 15-min intervals, limited to 1-month queries
+  - site_energy: Aggregated energy, supports longer periods
+  - inverter_data: Most detailed telemetry including AC/DC values, PF, temperature
+
+  API key can be account-level (all sites) or site-level (single site).
+  All timestamps are in site's configured timezone.
+
+  For ODS-E compliance, prefer inverter_data endpoint when available as it
+  provides power factor and reactive power directly from the inverter.
