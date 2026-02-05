@@ -75,7 +75,7 @@ ona-protocol/
 
 ## Documentation
 
-- [Full Documentation](https://docs.asoba.co/ona-protocol)
+- [Full Documentation](https://docs.asoba.co/ona-protocol/overview)
 - [Schema Reference](https://docs.asoba.co/ona-protocol/schemas)
 - [Transform Guide](https://docs.asoba.co/ona-protocol/transforms)
 
