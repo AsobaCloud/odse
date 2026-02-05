@@ -1,0 +1,113 @@
+# Switch Energy Meter to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+
+transform:
+  name: switch-meter
+  version: "1.0"
+  oem: Switch
+  description: Transform Switch Energy meter data to ODS-E format
+
+input_schema:
+  format: csv
+  encoding: utf-8
+  columns:
+    - name: timestampISO
+      aliases: ["timestamp", "Timestamp", "time"]
+      type: datetime
+      required: true
+    - name: dP1
+      aliases: ["dP1", "power_delta_1"]
+      type: float
+      required: false
+      description: Power delta 1 in Watts
+    - name: dP2
+      aliases: ["dP2", "power_delta_2"]
+      type: float
+      required: false
+      description: Power delta 2 in Watts (fallback)
+    - name: dQ1
+      aliases: ["dQ1", "reactive_delta_1"]
+      type: float
+      required: false
+      description: Reactive power delta 1 in VAR
+    - name: dQ2
+      aliases: ["dQ2", "reactive_delta_2"]
+      type: float
+      required: false
+      description: Reactive power delta 2 in VAR (fallback)
+
+output_mapping:
+  timestamp:
+    source: input.timestampISO
+    transform: to_iso8601
+  kWh:
+    function: calculate_energy
+    inputs: [input.dP1, input.dP2]
+    description: |
+      Power deltas are in Watts. Convert to kW and multiply by interval.
+      Formula: (dP1 or dP2) / 1000 * interval_hours
+  kVArh:
+    function: calculate_reactive_energy
+    inputs: [input.dQ1, input.dQ2]
+    description: |
+      Reactive power deltas are in VAR. Convert to kVAR and multiply by interval.
+      Formula: (dQ1 or dQ2) / 1000 * interval_hours
+  kVA:
+    function: calculate_apparent_power
+    inputs: [input.dP1, input.dQ1]
+    description: |
+      kVA = sqrt(P^2 + Q^2) where P and Q are in kW and kVAR
+  PF:
+    function: calculate_power_factor
+    inputs: [input.dP1, input.dQ1]
+    description: |
+      PF = P / sqrt(P^2 + Q^2)
+      Default to 0.95 if only active power available
+  error_type:
+    function: infer_status
+    inputs: [input.dP1, input.dP2]
+    description: Switch meters don't have explicit error codes, inferred from power
+  error_code:
+    function: generate_code
+    inputs: [input.dP1]
+    description: "1" if power != 0, else "0"
+
+status_inference:
+  normal:
+    condition: "(input.dP1 != 0 OR input.dP2 != 0)"
+  standby:
+    condition: "(input.dP1 == 0 AND input.dP2 == 0) AND is_daytime(timestamp, location)"
+  offline:
+    condition: "no_data_received"
+
+calculations:
+  energy_from_power_delta:
+    description: Convert power delta (W) to energy (kWh)
+    formula: "(power_delta_w / 1000.0) * interval_hours"
+
+  apparent_power:
+    description: Calculate apparent power from P and Q
+    formula: "sqrt((dP1/1000)^2 + (dQ1/1000)^2)"
+
+  power_factor:
+    description: Calculate power factor
+    formula: "(dP1/1000) / sqrt((dP1/1000)^2 + (dQ1/1000)^2)"
+    default: 0.95
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    PF:
+      min: 0
+      max: 1
+  temporal:
+    expected_interval: "15min"
+    max_gap: "4h"
+
+notes: |
+  Switch meters provide power deltas (dP1, dP2) rather than cumulative readings.
+  The deltas represent the change in power over the measurement interval.
+  Reactive power deltas (dQ1, dQ2) allow calculation of power factor and kVA.
+  Error codes are inferred since Switch doesn't provide explicit status codes.

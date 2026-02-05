@@ -64,6 +64,7 @@ ona-protocol/
 | Huawei FusionSolar | CSV, API | ✅ Included |
 | Enphase Envoy | JSON, API | ✅ Included |
 | Solarman Logger | CSV | ✅ Included |
+| Switch Energy | CSV | ✅ Included |
 
 ## License
 
