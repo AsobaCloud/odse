@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ods-e"
 version = "0.1.0"
 description = "Open Data Schema for Energy - validation and transformation library"
-readme = "../../README.md"
+readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [{name = "Asoba Corporation", email = "support@asoba.co"}]
 requires-python = ">=3.8"
