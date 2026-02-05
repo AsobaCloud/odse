@@ -15,7 +15,7 @@ ODS-E is an open specification for standardizing energy asset data from IoT devi
 ## Quick Start
 
 ```bash
-pip install ods-e
+pip install odse
 ```
 
 ```python

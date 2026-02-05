@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ods-e"
+name = "odse"
 version = "0.1.0"
 description = "Open Data Schema for Energy - validation and transformation library"
 readme = "README.md"
@@ -42,7 +42,7 @@ Documentation = "https://docs.asoba.co/ona-protocol/overview"
 Repository = "https://github.com/AsobaCloud/odse"
 
 [project.scripts]
-ods-e = "ods_e.cli:main"
+odse = "ods_e.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
