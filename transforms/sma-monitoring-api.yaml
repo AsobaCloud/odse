@@ -1,0 +1,131 @@
+# SMA Monitoring API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Sources:
+# - https://developer.sma.de/apis
+# - https://developer.sma.de/api-access-control
+
+transform:
+  name: sma-monitoring-api
+  version: "1.0"
+  oem: SMA
+  description: Transform SMA Monitoring API telemetry to ODS-E format
+
+input_schema:
+  format: json
+  api_base:
+    production: "https://developer.sma.de/apis"
+    sandbox: "https://sandbox.smaapis.de/monitoring"
+  authentication:
+    standard_oauth2:
+      type: oauth2
+      grant_types: [authorization_code, refresh_token, client_credentials]
+      authorize_endpoint: "https://auth.smaapis.de/oauth2/authorize"
+      token_endpoint: "https://auth.smaapis.de/oauth2/token"
+    owner_consent_flow:
+      type: oauth2_backchannel
+      authorize_endpoint: "https://async-auth.smaapis.de/oauth2/v2/bc-authorize"
+      status_endpoint: "https://async-auth.smaapis.de/oauth2/v2/bc-authorize/{auth_req_id}"
+      token_endpoint: "https://auth.smaapis.de/oauth2/token"
+      notes: Requires system owner to approve data access request.
+
+  endpoints:
+    openapi_discovery:
+      path: "/monitoring/swagger"
+      method: GET
+      description: Resolve latest monitoring endpoints and payload schema from SMA swagger.
+
+    system_core_data:
+      source: "SMA Monitoring OpenAPI"
+      description: System metadata and current operational state.
+
+    measurement_data:
+      source: "SMA Monitoring OpenAPI"
+      description: Granular time-series measurements used for power/energy mapping.
+
+    event_log_data:
+      source: "SMA Monitoring OpenAPI"
+      description: Event and warning/fault records for status derivation.
+
+normalization_contract:
+  description: |
+    SMA publishes endpoint-level schema via OpenAPI and may evolve field names by API version.
+    The integration layer should normalize vendor payloads into this contract before mapping.
+  fields:
+    - timestamp: datetime
+    - active_power_w: float
+    - active_energy_wh: float
+    - reactive_power_var: float
+    - apparent_power_va: float
+    - voltage_v: float
+    - current_a: float
+    - frequency_hz: float
+    - status_code: string
+    - event_severity: string
+    - event_code: string
+
+output_mapping:
+  timestamp:
+    source: input.normalized.timestamp
+    transform: to_iso8601
+  kW:
+    source: input.normalized.active_power_w
+    transform: divide_by_1000
+  kWh:
+    source: input.normalized.active_energy_wh
+    transform: divide_by_1000
+  kVAr:
+    source: input.normalized.reactive_power_var
+    transform: divide_by_1000
+  kVA:
+    source: input.normalized.apparent_power_va
+    transform: divide_by_1000
+  voltage_ac:
+    source: input.normalized.voltage_v
+    unit: V
+  current_ac:
+    source: input.normalized.current_a
+    unit: A
+  frequency:
+    source: input.normalized.frequency_hz
+    unit: Hz
+  error_type:
+    function: derive_from_status_and_events
+    inputs: [input.normalized.status_code, input.normalized.event_severity]
+  error_code:
+    source: input.normalized.event_code
+  oem_error_code:
+    source: input.normalized.status_code
+
+status_mapping:
+  event_severity_to_error_type:
+    info: normal
+    warning: warning
+    minor: warning
+    major: critical
+    critical: fault
+    fault: fault
+  status_code_fallback:
+    ONLINE: normal
+    RUNNING: normal
+    STANDBY: standby
+    OFFLINE: offline
+    ERROR: fault
+    UNKNOWN: unknown
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+    frequency:
+      min: 45
+      max: 65
+    voltage_ac:
+      min: 0
+  temporal:
+    expected_intervals: ["1min", "5min", "15min", "1h"]
+    max_gap: "24h"
+
+notes: |
+  SMA Monitoring API access has two distinct authorization patterns:
+  (1) standard OAuth2 and (2) owner-consent backchannel flow.
+  The exact telemetry endpoints and fields must be bound from SMA OpenAPI for the target API version.

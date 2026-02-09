@@ -1,0 +1,187 @@
+# FIMER Aurora Vision API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://api.auroravision.net/docs/api-docs/yaml/av-api.yaml
+
+transform:
+  name: fimer-auroravision-api
+  version: "1.0"
+  oem: FIMER
+  description: Transform Aurora Vision cloud telemetry and status data to ODS-E format
+
+input_schema:
+  format: json
+  api_base: "https://api.auroravision.net"
+  authentication:
+    type: token_exchange
+    api_key_header:
+      name: X-AuroraVision-ApiKey
+      required: true
+    credential_header:
+      name: Authorization
+      scheme: Basic
+      required: true
+    token_endpoint:
+      path: "/authenticate"
+      method: POST
+      response_header: X-AuroraVision-Token
+    session_header:
+      name: X-AuroraVision-Token
+      required: true
+
+  endpoints:
+    health:
+      path: "/status"
+      method: GET
+      response:
+        status: string
+
+    portfolio_groups:
+      path: "/v1/portfolioGroup"
+      method: GET
+      response:
+        entities:
+          - entityID: string
+            name: string
+            type: string
+
+    plants_in_portfolio:
+      path: "/v1/portfolio/{entityID}/plants"
+      method: GET
+      params:
+        startDate: string
+        endDate: string
+      response:
+        entities:
+          - entityID: string
+            name: string
+            timezone: string
+            status: string
+
+    plant_status:
+      path: "/v1/plant/{entityID}/status"
+      method: GET
+      response:
+        status: string
+        lastReportedTimestamp: datetime
+
+    plant_daily_production:
+      path: "/v1/plant/{entityID}/dailyProduction"
+      method: GET
+      params:
+        startDate: date
+        endDate: date
+      response:
+        series:
+          - date: date
+            energy: float
+            unit: string
+
+    device_status:
+      path: "/v1/device/{entityID}/status"
+      method: GET
+      response:
+        status: string
+        message: string
+        timestamp: datetime
+
+    aggregated_voltage:
+      path: "/v1/stats/voltage/aggregated/{entityID}/{dataType}/{valueType}"
+      method: GET
+      response:
+        points:
+          - timestamp: datetime
+            value: float
+
+    aggregated_current:
+      path: "/v1/stats/current/aggregated/{entityID}/{dataType}/{valueType}"
+      method: GET
+      response:
+        points:
+          - timestamp: datetime
+            value: float
+
+output_mapping:
+  from_plant_daily_production:
+    timestamp:
+      source: input.series[].date
+      transform: date_to_iso8601_day_end
+      timezone: site_timezone
+    kWh:
+      source: input.series[].energy
+      transform: normalize_energy_unit_to_kwh
+    error_type:
+      value: normal
+
+  from_plant_status:
+    timestamp:
+      source: input.lastReportedTimestamp
+      transform: to_iso8601
+    error_type:
+      function: map_entity_status
+      inputs: [input.status]
+    error_code:
+      source: input.status
+
+  from_device_status:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+    error_type:
+      function: map_entity_status
+      inputs: [input.status]
+    error_code:
+      source: input.message
+
+  from_aggregated_measurements:
+    timestamp:
+      source: input.points[].timestamp
+      transform: to_iso8601
+    voltage_ac:
+      source: input.voltage.points[].value
+      unit: V
+    current_ac:
+      source: input.current.points[].value
+      unit: A
+    kVA:
+      function: calculate_apparent_power
+      inputs: [input.voltage.points[].value, input.current.points[].value]
+      description: kVA = V * A / 1000
+    error_type:
+      value: normal
+
+status_mapping:
+  entity_status_to_error_type:
+    OK: normal
+    ONLINE: normal
+    RUNNING: normal
+    WARNING: warning
+    DEGRADED: warning
+    FAULT: fault
+    ERROR: fault
+    OFFLINE: offline
+    DISCONNECTED: offline
+    STANDBY: standby
+    SLEEP: standby
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+    voltage_ac:
+      min: 0
+      max: 1000
+    current_ac:
+      min: 0
+  temporal:
+    expected_intervals: ["5min", "15min", "1h", "1d"]
+    max_gap: "24h"
+
+api_characteristics:
+  scope: portfolio_plant_device_hierarchy
+  pagination: vendor_defined
+  timezone_handling: plant_timezone
+
+notes: |
+  Aurora Vision exposes hierarchy, status, and aggregated statistics endpoints.
+  API access is typically enabled per customer account by FIMER support.
+  Exact measurement endpoint selection depends on available entities and account role.

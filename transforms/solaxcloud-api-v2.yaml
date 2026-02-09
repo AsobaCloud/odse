@@ -1,0 +1,178 @@
+# SolaXCloud User API V2 to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://global.solaxcloud.com/blue/4/user_api/2024/SolaXCloud_User_API_V2.pdf
+
+transform:
+  name: solaxcloud-api-v2
+  version: "1.0"
+  oem: SolaX
+  description: Transform SolaXCloud API v2 real-time inverter data to ODS-E format
+
+input_schema:
+  format: json
+  api_base:
+    dynamic: true
+    description: |
+      Base domain is region/account specific and obtained from SolaXCloud Service > API.
+      Request URL format: https://<URL>/api/v2/dataAccess/realtimeInfo/get
+  authentication:
+    type: token_header
+    header_name: tokenId
+    token_source: "SolaXCloud Service > API (Third-party ecosystem)"
+
+  endpoints:
+    realtime_info:
+      path: "/api/v2/dataAccess/realtimeInfo/get"
+      method: POST
+      content_type: application/json
+      request:
+        wifiSn: string
+      response:
+        success: boolean
+        exception: string
+        code: integer
+        result:
+          inverterSn: string
+          sn: string
+          ratedPower: float
+          acpower: float            # W
+          yieldtoday: float         # kWh
+          yieldtotal: float         # kWh
+          feedinpower: float        # W
+          feedinenergy: float       # kWh
+          consumeenergy: float      # kWh
+          uploadTime: string        # "YYYY-MM-DD HH:mm:ss"
+          iac1: float
+          iac2: float
+          iac3: float
+          vac1: float
+          vac2: float
+          vac3: float
+          fac1: float
+          fac2: float
+          fac3: float
+          idc1: float
+          idc2: float
+          idc3: float
+          idc4: float
+          vdc1: float
+          vdc2: float
+          vdc3: float
+          vdc4: float
+          powerdc1: float
+          powerdc2: float
+          powerdc3: float
+          powerdc4: float
+          temperature: float
+          temperBoard: float
+          soc: float
+          batVoltage: float
+          batCurrent: float
+          batPower: float
+          battemper: float
+          inverterStatus: string
+          batStatus: string
+          timeZone: string
+
+output_mapping:
+  timestamp:
+    source: input.result.uploadTime
+    transform: to_iso8601
+    timezone_source: input.result.timeZone
+    timezone_fallback: site_timezone
+  kW:
+    source: input.result.acpower
+    transform: divide_by_1000
+  kWh:
+    source: input.result.yieldtoday
+    description: Daily yield is already reported in kWh
+  kWh_lifetime:
+    source: input.result.yieldtotal
+  voltage_ac:
+    function: average_non_zero
+    inputs:
+      - input.result.vac1
+      - input.result.vac2
+      - input.result.vac3
+  current_ac:
+    function: sum_non_null
+    inputs:
+      - input.result.iac1
+      - input.result.iac2
+      - input.result.iac3
+  frequency:
+    source: input.result.fac1
+    unit: Hz
+  voltage_dc:
+    function: max_non_null
+    inputs:
+      - input.result.vdc1
+      - input.result.vdc2
+      - input.result.vdc3
+      - input.result.vdc4
+  current_dc:
+    function: sum_non_null
+    inputs:
+      - input.result.idc1
+      - input.result.idc2
+      - input.result.idc3
+      - input.result.idc4
+  temperature:
+    source: input.result.temperature
+    unit: C
+  error_type:
+    function: map_inverter_status
+    inputs: [input.result.inverterStatus]
+  error_code:
+    source: input.result.inverterStatus
+  oem_error_code:
+    source: input.code
+
+status_mapping:
+  inverter_status_to_error_type:
+    "100": standby
+    "101": standby
+    "102": normal
+    "103": warning
+    "104": fault
+    "105": warning
+    "106": standby
+    "107": warning
+    "108": standby
+    "109": standby
+    "110": standby
+    "111": standby
+    "112": standby
+    "113": warning
+    "114": standby
+    "130": warning
+    "131": normal
+    "132": warning
+    "133": warning
+
+validation:
+  physical_bounds:
+    kW:
+      min: 0
+      max_formula: "ratedPower * 1.1"
+    kWh:
+      min: 0
+    frequency:
+      min: 45
+      max: 65
+    soc:
+      min: 0
+      max: 100
+  temporal:
+    expected_interval: "5min"
+    max_gap: "4h"
+
+api_limits:
+  token_id:
+    request_limit: "10 requests/minute, 10000 requests/day"
+    source: "SolaX help center guidance"
+
+notes: |
+  SolaXCloud API v2 currently documents one active real-time inverter endpoint for end users.
+  tokenId must be sent in request headers and is managed in Service > API.
+  Device status mapping and platform error code mapping are documented in API v2 appendix.

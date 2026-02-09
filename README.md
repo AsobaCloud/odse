@@ -8,7 +8,7 @@ ODS-E is an open specification for standardizing energy asset data from IoT devi
 ## Why ODS-E?
 
 - **No Vendor Lock-in**: Your data works with any ODS-E compatible system
-- **Faster Integrations**: Pre-built transforms for common OEMs (Huawei, Enphase, Solarman)
+- **Faster Integrations**: Pre-built transforms for common OEMs (Huawei, Enphase, Solarman, Switch, SolaX, FIMER)
 - **Analytics-Ready**: Standardized error taxonomy and semantic validation
 - **Future-Proof**: CC-BY-SA licensed specification ensures extensions stay open
 
@@ -24,8 +24,14 @@ from ods_e import validate, transform
 # Validate ODS-E data
 result = validate("production_data.json")
 
-# Transform from OEM format
+# Transform Huawei CSV rows to ODS-E records
 ods_data = transform("huawei_export.csv", source="huawei")
+
+# Transform Switch meter CSV rows
+switch_data = transform("switch_meter.csv", source="switch")
+
+# Transform SolaXCloud realtime JSON payload
+solax_data = transform("solax_realtime.json", source="solaxcloud")
 ```
 
 ## Repository Structure
@@ -67,6 +73,10 @@ ona-protocol/
 | SolarEdge | JSON API | ✅ Included |
 | Fronius | JSON API | ✅ Included |
 | Switch Energy | CSV | ✅ Included |
+| SMA | JSON API | ✅ Included (Spec) |
+| FIMER Aurora Vision | JSON API | ✅ Included (Spec) |
+| SolisCloud | JSON API | ✅ Included (Spec) |
+| SolaX Cloud | JSON API | ✅ Included (Spec) |
 
 ## License
 
@@ -78,6 +88,7 @@ ona-protocol/
 - [Full Documentation](https://docs.asoba.co/ona-protocol/overview)
 - [Schema Reference](https://docs.asoba.co/ona-protocol/schemas)
 - [Transform Guide](https://docs.asoba.co/ona-protocol/transforms)
+- [Inverter API Access Setup](spec/inverter-api-access.md)
 
 ## Contributing
 

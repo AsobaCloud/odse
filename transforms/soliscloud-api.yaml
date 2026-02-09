@@ -1,0 +1,125 @@
+# SolisCloud Platform API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://doc.soliscloud.com/en/20.API%20documentation/01.SolisCloud%20Platform%20API%20Document.html
+
+transform:
+  name: soliscloud-api
+  version: "1.0"
+  oem: Solis
+  description: Transform SolisCloud platform data to ODS-E format
+
+input_schema:
+  format: json
+  api_base:
+    production: vendor_assigned
+    description: API base URL is provided during Solis API activation.
+  authentication:
+    single_account_mode:
+      type: key_secret_signature
+      prerequisites:
+        - keyID
+        - keySecret
+      notes: "Solis documentation states this mode supports one account only."
+    multi_account_mode:
+      type: oauth2
+      grant_type: authorization_code
+      prerequisites:
+        - AppKey
+        - AppSecret
+      notes: "Solis documentation states this mode supports all signed-in users."
+
+  endpoints:
+    endpoint_catalog:
+      source: "SolisCloud API document appendix (provided after activation)."
+      description: |
+        Solis publishes endpoint-level details after cooperation/onboarding approval.
+        Typical integration categories are plant, device, and real-time telemetry APIs.
+
+normalization_contract:
+  description: |
+    Because endpoint schemas are gated behind activation docs, normalize Solis payloads
+    to this contract before applying ODS-E mapping.
+  fields:
+    - timestamp: datetime
+    - active_power_w: float
+    - active_energy_wh: float
+    - reactive_power_var: float
+    - apparent_power_va: float
+    - voltage_v: float
+    - current_a: float
+    - frequency_hz: float
+    - temperature_c: float
+    - inverter_status: string
+    - status_code: string
+
+output_mapping:
+  timestamp:
+    source: input.normalized.timestamp
+    transform: to_iso8601
+  kW:
+    source: input.normalized.active_power_w
+    transform: divide_by_1000
+  kWh:
+    source: input.normalized.active_energy_wh
+    transform: divide_by_1000
+  kVAr:
+    source: input.normalized.reactive_power_var
+    transform: divide_by_1000
+  kVA:
+    source: input.normalized.apparent_power_va
+    transform: divide_by_1000
+  voltage_ac:
+    source: input.normalized.voltage_v
+    unit: V
+  current_ac:
+    source: input.normalized.current_a
+    unit: A
+  frequency:
+    source: input.normalized.frequency_hz
+    unit: Hz
+  temperature:
+    source: input.normalized.temperature_c
+    unit: C
+  error_type:
+    function: map_status
+    inputs: [input.normalized.inverter_status, input.normalized.status_code]
+  error_code:
+    source: input.normalized.status_code
+
+status_mapping:
+  status_to_error_type:
+    normal: normal
+    running: normal
+    warning: warning
+    alarm: warning
+    fault: fault
+    error: fault
+    offline: offline
+    standby: standby
+    sleep: standby
+    unknown: unknown
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+    frequency:
+      min: 45
+      max: 65
+    voltage_ac:
+      min: 0
+  temporal:
+    expected_intervals: ["5min", "15min", "1h"]
+    max_gap: "24h"
+
+governance:
+  activation_requirements:
+    - cooperation_agreement_required
+    - signed_and_sealed_application_form
+    - email_domain_restrictions_may_apply
+  reference:
+    - "SolisCloud API document section: About Access Rights / How to Join the Open Platform"
+
+notes: |
+  SolisCloud API access is partner-gated. Endpoint and payload-level implementation should
+  be completed from the activation package received from Solis after onboarding approval.
