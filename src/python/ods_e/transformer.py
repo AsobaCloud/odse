@@ -895,7 +895,11 @@ def _resolve_existing_path(data: Union[str, Path]) -> Optional[Path]:
         candidate = Path(data)
     except (TypeError, OSError, ValueError):
         return None
-    return candidate if candidate.exists() else None
+    try:
+        return candidate if candidate.exists() else None
+    except (OSError, ValueError):
+        # Inline JSON/CSV strings can exceed filesystem path limits.
+        return None
 
 
 def _first_value(row: Dict[str, Any], keys: List[str]) -> Any:
