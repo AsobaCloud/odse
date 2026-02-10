@@ -89,6 +89,7 @@ ona-protocol/
 - [Schema Reference](https://docs.asoba.co/ona-protocol/schemas)
 - [Transform Guide](https://docs.asoba.co/ona-protocol/transforms)
 - [Inverter API Access Setup](spec/inverter-api-access.md)
+- [Launch Kit](spec/launch-kit.md)
 
 ## Transform Harness
 
