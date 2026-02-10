@@ -112,6 +112,23 @@ Run live-only checks for selected OEMs:
 PYTHONPATH=src/python python3 tools/transform_harness.py --mode live --oems enphase,sma,fronius
 ```
 
+Live mode quick config (`.env`):
+
+```env
+ODS_LIVE_ENPHASE_URL=https://api.enphaseenergy.com/api/v4/systems/<system_id>/telemetry/production_micro?start_at=2026-02-09T12:00:00Z&end_at=2026-02-09T12:15:00Z
+ODS_LIVE_ENPHASE_METHOD=GET
+ODS_LIVE_ENPHASE_HEADERS={"Authorization":"Bearer <enphase_access_token>"}
+ODS_LIVE_ENPHASE_TRANSFORM_KWARGS={"expected_devices":10}
+
+ODS_LIVE_SMA_URL=https://sandbox.smaapis.de/monitoring/<endpoint-returning-normalized-payload>
+ODS_LIVE_SMA_METHOD=GET
+ODS_LIVE_SMA_HEADERS={"Authorization":"Bearer <sma_access_token>"}
+
+FRONIUS_HOST=192.168.1.50
+```
+
+If you see `live config missing`, it means the required `ODS_LIVE_<OEM>_URL` (or `FRONIUS_HOST`) is not set in `.env`.
+
 ## Contributing
 
 Contributions are welcome. Schema and transform contributions must be licensed under CC-BY-SA 4.0.
