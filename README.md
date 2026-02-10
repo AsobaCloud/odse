@@ -90,6 +90,27 @@ ona-protocol/
 - [Transform Guide](https://docs.asoba.co/ona-protocol/transforms)
 - [Inverter API Access Setup](spec/inverter-api-access.md)
 
+## Transform Harness
+
+Run all OEM transform functions using fixtures:
+
+```bash
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode fixture
+```
+
+Run mixed mode (live for OEMs configured in `.env`, fixture fallback for others):
+
+```bash
+cp .env.example .env
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode mixed
+```
+
+Run live-only checks for selected OEMs:
+
+```bash
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode live --oems enphase,sma,fronius
+```
+
 ## Contributing
 
 Contributions are welcome. Schema and transform contributions must be licensed under CC-BY-SA 4.0.

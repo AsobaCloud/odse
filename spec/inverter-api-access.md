@@ -31,6 +31,37 @@ Last reviewed: 2026-02-09
 | `sma` | Implemented (normalized contract input) |
 | `solis`, `soliscloud` | Implemented (normalized contract input) |
 
+## Runtime Verification Harness
+
+Use `/Users/shingi/Workbench/ona-protocol/tools/transform_harness.py` to validate transform functions.
+
+### Modes
+
+- `fixture`: tests all OEMs with built-in payload fixtures.
+- `mixed`: uses live API calls when environment config exists, else fixture fallback.
+- `live`: requires live API config for every selected OEM.
+
+### Commands
+
+```bash
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode fixture
+```
+
+```bash
+cp .env.example .env
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode mixed --oems all
+```
+
+```bash
+PYTHONPATH=src/python python3 tools/transform_harness.py --mode live --oems enphase,sma,fronius
+```
+
+### Live API Configuration
+
+- Configure per-OEM live request settings in `.env` (see `.env.example`).
+- Enphase and SMA live checks require endpoint URLs that return payloads compatible with current runtime mappers.
+- Fronius live checks can use `FRONIUS_HOST` for local inverter polling.
+
 ## Status Key
 
 - Included: OEM has an existing transform in this repository.
