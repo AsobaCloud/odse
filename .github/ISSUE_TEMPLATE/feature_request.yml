@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose an improvement to ODS-E.
+title: "[Feature]: "
+labels: ["docs"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe expected behavior and interface.
+    validations:
+      required: true
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change class
+      options:
+        - routine
+        - normative
+        - breaking
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Any migration or deprecation implications?

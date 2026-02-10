@@ -91,6 +91,11 @@ ona-protocol/
 - [Inverter API Access Setup](spec/inverter-api-access.md)
 - [Launch Kit](spec/launch-kit.md)
 - [Governance](GOVERNANCE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+- [Roadmap](ROADMAP.md)
 
 ## Transform Harness
 

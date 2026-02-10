@@ -1,0 +1,38 @@
+name: OEM integration request
+description: Request a new OEM transform or runtime adapter.
+title: "[OEM]: "
+labels: ["spec"]
+body:
+  - type: input
+    id: oem_name
+    attributes:
+      label: OEM name
+    validations:
+      required: true
+  - type: dropdown
+    id: ask_type
+    attributes:
+      label: Requested scope
+      options:
+        - transform spec
+        - runtime adapter
+        - both
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Official API documentation links
+      description: Include primary vendor docs only.
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample payload availability
+      description: Can you provide non-sensitive sample payloads?
+  - type: textarea
+    id: auth
+    attributes:
+      label: Authentication/onboarding requirements
+      description: Keys, OAuth, partner gating, local network, etc.
