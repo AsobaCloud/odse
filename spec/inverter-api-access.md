@@ -24,8 +24,12 @@ Last reviewed: 2026-02-09
 | `switch` | Implemented |
 | `solaxcloud`, `solax` | Implemented |
 | `fimer`, `auroravision` | Implemented |
-| `enphase` | Placeholder (returns empty list) |
-| `solarman` | Placeholder (returns empty list) |
+| `enphase` | Implemented |
+| `solarman` | Implemented |
+| `solaredge` | Implemented |
+| `fronius` | Implemented |
+| `sma` | Implemented (normalized contract input) |
+| `solis`, `soliscloud` | Implemented (normalized contract input) |
 
 ## Status Key
 

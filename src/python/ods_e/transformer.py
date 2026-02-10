@@ -7,7 +7,7 @@ Transforms OEM-specific data formats to ODS-E schema.
 import csv
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -18,6 +18,7 @@ def transform(
     source: str,
     asset_id: Optional[str] = None,
     timezone: Optional[str] = None,
+    **kwargs,
 ) -> List[Dict[str, Any]]:
     """
     Transform OEM data to ODS-E format.
@@ -32,7 +33,12 @@ def transform(
         List of ODS-E formatted records
     """
     transformer = _get_transformer(source)
-    return transformer.transform(data, asset_id=asset_id, timezone=timezone)
+    return transformer.transform(
+        data,
+        asset_id=asset_id,
+        timezone=timezone,
+        **kwargs,
+    )
 
 
 def transform_stream(
@@ -69,6 +75,11 @@ def _get_transformer(source: str):
         "solax": SolaxCloudTransformer(),
         "fimer": FimerTransformer(),
         "auroravision": FimerTransformer(),
+        "solaredge": SolarEdgeTransformer(),
+        "fronius": FroniusTransformer(),
+        "sma": SMATransformer(),
+        "solis": SolisTransformer(),
+        "soliscloud": SolisTransformer(),
     }
 
     source_lower = source.lower()
@@ -190,8 +201,65 @@ class EnphaseTransformer(BaseTransformer):
     """Transform Enphase Envoy data to ODS-E."""
 
     def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
-        # Placeholder implementation
-        return []
+        payload = self._parse_json(data)
+        expected_devices = kwargs.get("expected_devices")
+        asset_id = kwargs.get("asset_id")
+
+        if isinstance(payload, dict):
+            items = payload.get("production") if isinstance(payload.get("production"), list) else [payload]
+        elif isinstance(payload, list):
+            items = payload
+        else:
+            items = []
+
+        records: List[Dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            end_at = _to_float(item.get("end_at"))
+            wh_del = _to_float(item.get("wh_del"))
+            timestamp = _to_iso8601(end_at)
+            if timestamp is None or wh_del is None:
+                continue
+
+            devices_reporting = _to_int(item.get("devices_reporting"))
+            error_type = self._derive_status(
+                devices_reporting=devices_reporting,
+                expected_devices=expected_devices,
+            )
+
+            record: Dict[str, Any] = {
+                "timestamp": timestamp,
+                "kWh": max(wh_del / 1000.0, 0.0),
+                "error_type": error_type,
+            }
+            if asset_id:
+                record["asset_id"] = asset_id
+            records.append(record)
+
+        return records
+
+    @staticmethod
+    def _derive_status(
+        *,
+        devices_reporting: Optional[int],
+        expected_devices: Optional[int],
+    ) -> str:
+        if devices_reporting is None:
+            return "offline"
+        if expected_devices is None or expected_devices <= 0:
+            if devices_reporting == 0:
+                return "offline"
+            return "normal"
+
+        ratio = devices_reporting / float(expected_devices)
+        if ratio >= 0.95:
+            return "normal"
+        if ratio >= 0.80:
+            return "warning"
+        if devices_reporting > 0:
+            return "critical"
+        return "offline"
 
 
 class SolarmanTransformer(BaseTransformer):
@@ -205,11 +273,80 @@ class SolarmanTransformer(BaseTransformer):
         "Error": "fault",
         "Offline": "offline",
         "Standby": "standby",
+        "Degraded": "warning",
+        "Disconnected": "offline",
+        "No Data": "offline",
+        "Idle": "standby",
+        "Waiting": "standby",
+        "Online": "normal",
+        "1": "normal",
+        "0": "offline",
     }
 
     def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
-        # Placeholder implementation
-        return []
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone")
+        asset_id = kwargs.get("asset_id")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+
+        records: List[Dict[str, Any]] = []
+        prev_generation: Optional[float] = None
+
+        for row in rows:
+            timestamp_raw = _first_value(row, ["update_time", "Update Time", "Time", "Timestamp"])
+            timestamp = _to_iso8601(timestamp_raw, timezone=timezone)
+            if not timestamp:
+                continue
+
+            generation = _to_float(
+                _first_value(row, ["generation", "Generation(kWh)", "Total Generation", "Cumulative Energy"])
+            )
+            generation_missing = generation is None
+            if generation_missing:
+                continue
+
+            if prev_generation is None:
+                kwh = 0.0
+            else:
+                kwh = max(generation - prev_generation, 0.0)
+            prev_generation = generation
+
+            device_state_raw = _first_value(row, ["device_state", "Device State", "Status", "State"])
+            power_w = _to_float(_first_value(row, ["power", "Power(W)", "Active Power", "Output Power"]))
+            error_type = self._map_state(device_state_raw, power_w)
+
+            record: Dict[str, Any] = {
+                "timestamp": timestamp,
+                "kWh": kwh,
+                "error_type": error_type,
+                "error_code": str(device_state_raw) if device_state_raw not in (None, "") else "inferred",
+            }
+            if power_w is not None:
+                record["kW"] = power_w / 1000.0
+                if generation_missing and power_w > 0:
+                    record["kWh"] = (power_w / 1000.0) * interval_hours
+            if asset_id:
+                record["asset_id"] = asset_id
+            records.append(record)
+
+        return records
+
+    def _map_state(self, device_state: Optional[Any], power_w: Optional[float]) -> str:
+        if device_state is not None:
+            state_key = str(device_state).strip()
+            if state_key in self.STATE_MAPPING:
+                return self.STATE_MAPPING[state_key]
+            state_title = state_key.title()
+            if state_title in self.STATE_MAPPING:
+                return self.STATE_MAPPING[state_title]
+
+        if power_w is None:
+            return "unknown"
+        if power_w > 0:
+            return "normal"
+        if power_w == 0:
+            return "offline"
+        return "warning"
 
 
 class SwitchTransformer(BaseTransformer):
@@ -416,6 +553,339 @@ class FimerTransformer(BaseTransformer):
         return output
 
 
+class SolarEdgeTransformer(BaseTransformer):
+    """Transform SolarEdge monitoring payloads to ODS-E."""
+
+    MODE_MAPPING = {
+        "MPPT": "normal",
+        "ON": "normal",
+        "PRODUCTION": "normal",
+        "OFF": "offline",
+        "SLEEPING": "standby",
+        "STARTING": "standby",
+        "SHUTTING_DOWN": "standby",
+        "STANDBY": "standby",
+        "FAULT": "fault",
+        "ERROR": "fault",
+        "MAINTENANCE": "warning",
+        "LOCKED_GRID": "warning",
+        "LOCKED_INTERNAL": "warning",
+        "NIGHT_MODE": "standby",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 15) or 15) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        out: List[Dict[str, Any]] = []
+        if isinstance(payload, dict) and isinstance(payload.get("data", {}).get("telemetries"), list):
+            for t in payload["data"]["telemetries"]:
+                ts = _to_iso8601(t.get("date"), timezone=timezone)
+                if not ts:
+                    continue
+                power_w = _to_float(t.get("totalActivePower"))
+                kwh = max(((power_w or 0.0) / 1000.0) * interval_hours, 0.0)
+                mode = str(t.get("inverterMode") or "").upper()
+                rec = _base_record(
+                    timestamp=ts,
+                    kwh=kwh,
+                    error_type=self.MODE_MAPPING.get(mode, "unknown"),
+                    error_code=t.get("operationMode"),
+                    asset_id=asset_id,
+                )
+                if power_w is not None:
+                    rec["kW"] = power_w / 1000.0
+                l1 = t.get("L1Data", {}) if isinstance(t.get("L1Data"), dict) else {}
+                for src_key, dst_key, scale in [
+                    ("apparentPower", "kVA", 1000.0),
+                    ("reactivePower", "kVAr", 1000.0),
+                    ("cosPhi", "PF", None),
+                    ("acVoltage", "voltage_ac", None),
+                    ("acCurrent", "current_ac", None),
+                    ("acFrequency", "frequency", None),
+                ]:
+                    val = _to_float(l1.get(src_key))
+                    if val is not None:
+                        rec[dst_key] = (val / scale) if scale else val
+                out.append(rec)
+            return out
+
+        if isinstance(payload, dict) and isinstance(payload.get("energy", {}).get("values"), list):
+            for v in payload["energy"]["values"]:
+                ts = _to_iso8601(v.get("date"), timezone=timezone)
+                val = _to_float(v.get("value"))
+                if ts and val is not None:
+                    out.append(
+                        _base_record(
+                            timestamp=ts,
+                            kwh=max(val / 1000.0, 0.0),
+                            error_type="normal",
+                            error_code=None,
+                            asset_id=asset_id,
+                        )
+                    )
+            return out
+
+        if isinstance(payload, dict) and isinstance(payload.get("power", {}).get("values"), list):
+            for v in payload["power"]["values"]:
+                ts = _to_iso8601(v.get("date"), timezone=timezone)
+                val = _to_float(v.get("value"))
+                if not ts:
+                    continue
+                kwh = max(((val or 0.0) / 1000.0) * interval_hours, 0.0)
+                rec = _base_record(
+                    timestamp=ts,
+                    kwh=kwh,
+                    error_type="normal" if (val or 0) > 0 else "standby",
+                    error_code=None,
+                    asset_id=asset_id,
+                )
+                if val is not None:
+                    rec["kW"] = val / 1000.0
+                out.append(rec)
+            return out
+
+        return out
+
+
+class FroniusTransformer(BaseTransformer):
+    """Transform Fronius local Solar API payloads to ODS-E."""
+
+    STATUS_CODE_MAPPING = {
+        0: "normal",
+        1: "normal",
+        2: "normal",
+        3: "normal",
+        4: "normal",
+        5: "normal",
+        6: "normal",
+        7: "standby",
+        8: "standby",
+        9: "fault",
+        10: "offline",
+        11: "warning",
+        12: "warning",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        if not isinstance(payload, dict):
+            return []
+
+        head = payload.get("Head", {}) if isinstance(payload.get("Head"), dict) else {}
+        body = payload.get("Body", {}) if isinstance(payload.get("Body"), dict) else {}
+        data_block = body.get("Data", {}) if isinstance(body.get("Data"), dict) else {}
+        ts = _to_iso8601(head.get("Timestamp"), timezone=timezone)
+        if not ts:
+            return []
+
+        if isinstance(data_block.get("Site"), dict):
+            site = data_block["Site"]
+            p_pv = _to_float(site.get("P_PV"))
+            e_day = _to_float(site.get("E_Day"))
+            status_code = _to_int(head.get("Status", {}).get("Code") if isinstance(head.get("Status"), dict) else None)
+            rec = _base_record(
+                timestamp=ts,
+                kwh=max((e_day or ((p_pv or 0.0) * interval_hours)) / 1000.0, 0.0),
+                error_type="normal" if (status_code in (None, 0)) else "warning",
+                error_code=status_code,
+                asset_id=asset_id,
+            )
+            if p_pv is not None:
+                rec["kW"] = p_pv / 1000.0
+            return [rec]
+
+        if "PAC" in data_block:
+            pac = _to_float(_deep_get(data_block, ["PAC", "Value"]))
+            sac = _to_float(_deep_get(data_block, ["SAC", "Value"]))
+            day_energy = _to_float(_deep_get(data_block, ["DAY_ENERGY", "Value"]))
+            status_code = _to_int(_deep_get(data_block, ["DeviceStatus", "StatusCode"]))
+            error_code = _deep_get(data_block, ["DeviceStatus", "ErrorCode"])
+            rec = _base_record(
+                timestamp=ts,
+                kwh=max((day_energy or ((pac or 0.0) * interval_hours)) / 1000.0, 0.0),
+                error_type=self.STATUS_CODE_MAPPING.get(status_code or -1, "unknown"),
+                error_code=error_code,
+                asset_id=asset_id,
+            )
+            if pac is not None:
+                rec["kW"] = pac / 1000.0
+            if sac is not None:
+                rec["kVA"] = sac / 1000.0
+                if pac is not None and sac > 0:
+                    rec["PF"] = max(0.0, min(1.0, pac / sac))
+            return [rec]
+
+        if isinstance(data_block.get("PowerReal_P_Sum"), (int, float)):
+            p = _to_float(data_block.get("PowerReal_P_Sum"))
+            s = _to_float(data_block.get("PowerApparent_S_Sum"))
+            q = _to_float(data_block.get("PowerReactive_Q_Sum"))
+            e = _to_float(data_block.get("EnergyReal_WAC_Sum_Produced"))
+            pf = _to_float(data_block.get("PowerFactor_Sum"))
+            rec = _base_record(
+                timestamp=ts,
+                kwh=max((e or ((p or 0.0) * interval_hours)) / 1000.0, 0.0),
+                error_type="normal",
+                error_code=None,
+                asset_id=asset_id,
+            )
+            if p is not None:
+                rec["kW"] = p / 1000.0
+            if s is not None:
+                rec["kVA"] = s / 1000.0
+            if q is not None:
+                rec["kVAr"] = q / 1000.0
+            if pf is not None:
+                rec["PF"] = max(0.0, min(1.0, pf))
+            return [rec]
+
+        return []
+
+
+class SMATransformer(BaseTransformer):
+    """Transform normalized SMA monitoring records to ODS-E."""
+
+    SEVERITY_MAPPING = {
+        "INFO": "normal",
+        "WARNING": "warning",
+        "MINOR": "warning",
+        "MAJOR": "critical",
+        "CRITICAL": "fault",
+        "FAULT": "fault",
+    }
+    STATUS_FALLBACK = {
+        "ONLINE": "normal",
+        "RUNNING": "normal",
+        "STANDBY": "standby",
+        "OFFLINE": "offline",
+        "ERROR": "fault",
+        "UNKNOWN": "unknown",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        asset_id = kwargs.get("asset_id")
+        records_in = _extract_records(payload)
+
+        out: List[Dict[str, Any]] = []
+        for r in records_in:
+            normalized = r.get("normalized") if isinstance(r.get("normalized"), dict) else r
+            ts = _to_iso8601(normalized.get("timestamp"), timezone=timezone)
+            if not ts:
+                continue
+
+            p_w = _to_float(normalized.get("active_power_w"))
+            e_wh = _to_float(normalized.get("active_energy_wh"))
+            q_var = _to_float(normalized.get("reactive_power_var"))
+            s_va = _to_float(normalized.get("apparent_power_va"))
+            sev = str(normalized.get("event_severity") or "").upper()
+            status = str(normalized.get("status_code") or "").upper()
+            error_type = self.SEVERITY_MAPPING.get(sev, self.STATUS_FALLBACK.get(status, "unknown"))
+
+            rec = _base_record(
+                timestamp=ts,
+                kwh=max((e_wh or 0.0) / 1000.0, 0.0),
+                error_type=error_type,
+                error_code=normalized.get("event_code") or normalized.get("status_code"),
+                asset_id=asset_id,
+            )
+            if p_w is not None:
+                rec["kW"] = p_w / 1000.0
+            if q_var is not None:
+                rec["kVAr"] = q_var / 1000.0
+            if s_va is not None:
+                rec["kVA"] = s_va / 1000.0
+            if (p_w is not None) and (s_va is not None) and s_va > 0:
+                rec["PF"] = max(0.0, min(1.0, p_w / s_va))
+            for src, dst in [
+                ("voltage_v", "voltage_ac"),
+                ("current_a", "current_ac"),
+                ("frequency_hz", "frequency"),
+            ]:
+                val = _to_float(normalized.get(src))
+                if val is not None:
+                    rec[dst] = val
+            out.append(rec)
+        return out
+
+
+class SolisTransformer(BaseTransformer):
+    """Transform normalized SolisCloud records to ODS-E."""
+
+    STATUS_MAPPING = {
+        "NORMAL": "normal",
+        "RUNNING": "normal",
+        "WARNING": "warning",
+        "ALARM": "warning",
+        "FAULT": "fault",
+        "ERROR": "fault",
+        "OFFLINE": "offline",
+        "STANDBY": "standby",
+        "SLEEP": "standby",
+        "UNKNOWN": "unknown",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+        asset_id = kwargs.get("asset_id")
+        records_in = _extract_records(payload)
+
+        out: List[Dict[str, Any]] = []
+        for r in records_in:
+            normalized = r.get("normalized") if isinstance(r.get("normalized"), dict) else r
+            ts = _to_iso8601(normalized.get("timestamp"), timezone=timezone)
+            if not ts:
+                continue
+
+            p_w = _to_float(normalized.get("active_power_w"))
+            e_wh = _to_float(normalized.get("active_energy_wh"))
+            q_var = _to_float(normalized.get("reactive_power_var"))
+            s_va = _to_float(normalized.get("apparent_power_va"))
+            status = str(
+                normalized.get("inverter_status")
+                or normalized.get("status_code")
+                or "UNKNOWN"
+            ).upper()
+
+            kwh = (e_wh / 1000.0) if e_wh is not None else max(((p_w or 0.0) / 1000.0) * interval_hours, 0.0)
+            rec = _base_record(
+                timestamp=ts,
+                kwh=kwh,
+                error_type=self.STATUS_MAPPING.get(status, "unknown"),
+                error_code=normalized.get("status_code") or normalized.get("inverter_status"),
+                asset_id=asset_id,
+            )
+            if p_w is not None:
+                rec["kW"] = p_w / 1000.0
+            if q_var is not None:
+                rec["kVAr"] = q_var / 1000.0
+            if s_va is not None:
+                rec["kVA"] = s_va / 1000.0
+            if (p_w is not None) and (s_va is not None) and s_va > 0:
+                rec["PF"] = max(0.0, min(1.0, p_w / s_va))
+            for src, dst in [
+                ("voltage_v", "voltage_ac"),
+                ("current_a", "current_ac"),
+                ("frequency_hz", "frequency"),
+                ("temperature_c", "temperature"),
+            ]:
+                val = _to_float(normalized.get(src))
+                if val is not None:
+                    rec[dst] = val
+            out.append(rec)
+
+        return out
+
+
 def _resolve_existing_path(data: Union[str, Path]) -> Optional[Path]:
     if isinstance(data, Path):
         return data if data.exists() else None
@@ -461,7 +931,12 @@ def _to_iso8601(value: Any, timezone: Optional[str] = None) -> Optional[str]:
 
     if isinstance(value, (int, float)):
         try:
-            return datetime.utcfromtimestamp(float(value)).replace(microsecond=0).isoformat() + "Z"
+            return (
+                datetime.fromtimestamp(float(value), dt_timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
         except (TypeError, ValueError, OSError):
             return None
 
@@ -531,6 +1006,29 @@ def _normalize_energy_to_kwh(value: Any, unit: Optional[str]) -> Optional[float]
     if unit_upper == "MWH":
         return energy * 1000.0
     return energy
+
+
+def _extract_records(payload: Any) -> List[Dict[str, Any]]:
+    if isinstance(payload, dict):
+        for key in ("records", "data", "items", "result"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [x for x in value if isinstance(x, dict)]
+            if isinstance(value, dict):
+                return [value]
+        return [payload]
+    if isinstance(payload, list):
+        return [x for x in payload if isinstance(x, dict)]
+    return []
+
+
+def _deep_get(data: Dict[str, Any], keys: List[str]) -> Any:
+    current: Any = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
 
 
 def _base_record(
