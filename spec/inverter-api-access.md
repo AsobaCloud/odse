@@ -16,7 +16,7 @@ Last reviewed: 2026-02-09
 - Solis: `transforms/soliscloud-api.yaml`
 - SolaX: `transforms/solaxcloud-api-v2.yaml`
 
-## Runtime Support (Python `ods_e.transform`)
+## Runtime Support (Python `odse.transform`)
 
 | Source Key | Runtime Status |
 |------------|----------------|

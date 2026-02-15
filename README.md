@@ -19,7 +19,7 @@ pip install odse
 ```
 
 ```python
-from ods_e import validate, transform
+from odse import validate, transform
 
 # Validate ODS-E data
 result = validate("production_data.json")

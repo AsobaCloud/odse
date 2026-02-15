@@ -42,7 +42,7 @@ Documentation = "https://docs.asoba.co/ona-protocol/overview"
 Repository = "https://github.com/AsobaCloud/odse"
 
 [project.scripts]
-odse = "ods_e.cli:main"
+odse = "odse.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

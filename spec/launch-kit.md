@@ -66,7 +66,7 @@ Publish this matrix in docs and outreach posts.
 ### Matrix Rules
 
 - `Transform Spec` means YAML transform spec exists in `transforms/`.
-- `Runtime Function` means `ods_e.transform(..., source=...)` is implemented.
+- `Runtime Function` means `odse.transform(..., source=...)` is implemented.
 - `Live-Tested Evidence` must reference date + account class used (sandbox, demo, or production).
 
 ## 3) Start Here (15-Minute Setup)

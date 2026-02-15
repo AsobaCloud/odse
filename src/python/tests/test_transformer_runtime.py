@@ -1,6 +1,6 @@
 import unittest
 
-from ods_e.transformer import transform
+from odse.transformer import transform
 
 
 class TransformerRuntimeTests(unittest.TestCase):
