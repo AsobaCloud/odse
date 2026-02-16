@@ -35,7 +35,7 @@ def validate(
     longitude: Optional[float] = None,
 ) -> ValidationResult:
     """
-    Validate data against ODS-E production-timeseries schema.
+    Validate data against ODS-E energy-timeseries schema.
 
     Args:
         data: Dictionary, JSON string, or path to JSON file
@@ -133,11 +133,41 @@ def _validate_schema(data: dict) -> List[ValidationError]:
             code="ENUM_MISMATCH",
         ))
 
-    # Bounds validation
-    if isinstance(data.get("kWh"), (int, float)) and data["kWh"] < 0:
+    valid_directions = ["generation", "consumption", "net"]
+    if "direction" in data and data["direction"] not in valid_directions:
+        errors.append(ValidationError(
+            path="$.direction",
+            message=f"Value '{data['direction']}' not in enum {valid_directions}",
+            code="ENUM_MISMATCH",
+        ))
+
+    valid_end_uses = [
+        "cooling", "heating", "fans", "pumps", "water_systems",
+        "interior_lighting", "exterior_lighting", "interior_equipment",
+        "refrigeration", "cooking", "laundry", "ev_charging",
+        "pv_generation", "battery_storage", "whole_building", "other",
+    ]
+    if "end_use" in data and data["end_use"] not in valid_end_uses:
+        errors.append(ValidationError(
+            path="$.end_use",
+            message=f"Value '{data['end_use']}' not in enum {valid_end_uses}",
+            code="ENUM_MISMATCH",
+        ))
+
+    valid_fuel_types = ["electricity", "natural_gas", "propane", "fuel_oil", "other"]
+    if "fuel_type" in data and data["fuel_type"] not in valid_fuel_types:
+        errors.append(ValidationError(
+            path="$.fuel_type",
+            message=f"Value '{data['fuel_type']}' not in enum {valid_fuel_types}",
+            code="ENUM_MISMATCH",
+        ))
+
+    # Bounds validation — kWh >= 0 except for net direction
+    direction = data.get("direction", "generation")
+    if isinstance(data.get("kWh"), (int, float)) and data["kWh"] < 0 and direction != "net":
         errors.append(ValidationError(
             path="$.kWh",
-            message="kWh must be >= 0",
+            message="kWh must be >= 0 for generation and consumption",
             code="OUT_OF_BOUNDS",
         ))
 
@@ -163,8 +193,9 @@ def _validate_semantic(
     errors = []
     warnings = []
 
-    # Physical bounds check
-    if capacity_kw and isinstance(data.get("kWh"), (int, float)):
+    # Physical bounds check — skip for consumption (capacity doesn't bound consumption)
+    direction = data.get("direction", "generation")
+    if capacity_kw and isinstance(data.get("kWh"), (int, float)) and direction != "consumption":
         # Assume 1-hour interval for simplicity
         max_kwh = capacity_kw * 1.1
         if data["kWh"] > max_kwh:

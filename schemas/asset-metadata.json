@@ -66,6 +66,54 @@
     "ppa_id": {
       "type": "string",
       "description": "Associated power purchase agreement"
+    },
+    "asset_type": {
+      "type": "string",
+      "enum": [
+        "solar_pv", "wind_turbine", "battery_storage", "grid_meter",
+        "ev_charger", "hvac_system", "generator", "chp", "fuel_cell", "other"
+      ],
+      "description": "Type of energy asset"
+    },
+    "building": {
+      "type": "object",
+      "description": "ComStock/ResStock-compatible building metadata",
+      "properties": {
+        "building_type": {
+          "type": "string",
+          "enum": [
+            "large_office", "medium_office", "small_office", "warehouse",
+            "retail_standalone", "strip_mall", "primary_school", "secondary_school",
+            "hospital", "outpatient", "large_hotel", "small_hotel",
+            "full_service_restaurant", "quick_service_restaurant",
+            "single_family_detached", "single_family_attached",
+            "multi_family_2_to_4", "multi_family_5_plus", "mobile_home",
+            "industrial", "mixed_use", "other"
+          ],
+          "description": "Building type aligned with ComStock/ResStock taxonomies"
+        },
+        "climate_zone": {
+          "type": "string",
+          "description": "ASHRAE/IECC climate zone (e.g., '3A', '4A', '5B')"
+        },
+        "vintage": {
+          "type": "string",
+          "description": "Building age or code era (e.g., 'pre-1980', '2004', '2013')"
+        },
+        "floor_area_sqm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Gross floor area in square meters"
+        },
+        "state": {
+          "type": "string",
+          "description": "US state postal abbreviation or ISO 3166-2 code"
+        },
+        "county": {
+          "type": "string",
+          "description": "County name or FIPS code"
+        }
+      }
     }
   }
 }

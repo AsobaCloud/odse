@@ -1,6 +1,7 @@
 import unittest
 
 from odse.transformer import transform
+from odse.validator import validate
 
 
 class TransformerRuntimeTests(unittest.TestCase):
@@ -200,6 +201,101 @@ class TransformerRuntimeTests(unittest.TestCase):
         self.assertEqual(rows[0]["error_type"], "normal")
         self.assertEqual(rows[0]["error_code"], "200")
         self.assertAlmostEqual(rows[0]["kW"], 4.6)
+
+
+class EnergyTimeseriesValidationTests(unittest.TestCase):
+    """Tests for the extended energy-timeseries schema fields."""
+
+    def _base_record(self, **overrides):
+        record = {
+            "timestamp": "2026-02-09T12:00:00Z",
+            "kWh": 5.0,
+            "error_type": "normal",
+        }
+        record.update(overrides)
+        return record
+
+    def test_generation_record_validates(self):
+        """Existing generation records (no direction) still validate."""
+        result = validate(self._base_record())
+        self.assertTrue(result.is_valid)
+
+    def test_explicit_generation_direction_validates(self):
+        result = validate(self._base_record(direction="generation"))
+        self.assertTrue(result.is_valid)
+
+    def test_consumption_record_validates(self):
+        result = validate(self._base_record(
+            direction="consumption",
+            end_use="whole_building",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_net_record_with_negative_kwh_validates(self):
+        result = validate(self._base_record(
+            direction="net",
+            kWh=-3.2,
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_negative_kwh_rejected_for_generation(self):
+        result = validate(self._base_record(kWh=-1.0))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_negative_kwh_rejected_for_consumption(self):
+        result = validate(self._base_record(
+            direction="consumption",
+            kWh=-1.0,
+        ))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_invalid_direction_rejected(self):
+        result = validate(self._base_record(direction="export"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_invalid_end_use_rejected(self):
+        result = validate(self._base_record(end_use="teleportation"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_invalid_fuel_type_rejected(self):
+        result = validate(self._base_record(fuel_type="antimatter"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_valid_fuel_type_accepted(self):
+        result = validate(self._base_record(fuel_type="natural_gas"))
+        self.assertTrue(result.is_valid)
+
+    def test_end_use_with_fuel_type(self):
+        result = validate(self._base_record(
+            direction="consumption",
+            end_use="heating",
+            fuel_type="natural_gas",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_semantic_skips_capacity_check_for_consumption(self):
+        result = validate(
+            self._base_record(direction="consumption", kWh=500.0),
+            level="semantic",
+            capacity_kw=10.0,
+        )
+        self.assertTrue(result.is_valid)
+        self.assertEqual(len(result.warnings), 0)
+
+    def test_semantic_capacity_check_still_applies_for_generation(self):
+        result = validate(
+            self._base_record(direction="generation", kWh=500.0),
+            level="semantic",
+            capacity_kw=10.0,
+        )
+        self.assertTrue(result.is_valid)
+        self.assertEqual(len(result.warnings), 1)
+        self.assertEqual(result.warnings[0].code, "EXCEEDS_PHYSICAL_MAXIMUM")
 
 
 if __name__ == "__main__":

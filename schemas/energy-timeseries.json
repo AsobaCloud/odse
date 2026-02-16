@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/energy-timeseries.json",
+  "title": "ODS-E Energy Timeseries",
+  "description": "Standardized energy reading from IoT devices, supporting generation, consumption, and net metering",
+  "type": "object",
+  "required": ["timestamp", "kWh", "error_type"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with timezone"
+    },
+    "kWh": {
+      "type": "number",
+      "description": "Active energy in kilowatt-hours. Must be >= 0 for generation and consumption; may be negative for net direction."
+    },
+    "error_type": {
+      "type": "string",
+      "enum": ["normal", "warning", "critical", "fault", "offline", "standby", "unknown"],
+      "description": "Standardized error classification"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "Original OEM error code (preserved for reference)"
+    },
+    "kVArh": {
+      "type": "number",
+      "description": "Reactive energy in kilovolt-ampere reactive hours"
+    },
+    "kVA": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Apparent power in kilovolt-amperes"
+    },
+    "PF": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Power factor"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["generation", "consumption", "net"],
+      "default": "generation",
+      "description": "Energy flow direction. Defaults to 'generation' for backward compatibility."
+    },
+    "end_use": {
+      "type": "string",
+      "enum": [
+        "cooling", "heating", "fans", "pumps", "water_systems",
+        "interior_lighting", "exterior_lighting", "interior_equipment",
+        "refrigeration", "cooking", "laundry", "ev_charging",
+        "pv_generation", "battery_storage", "whole_building", "other"
+      ],
+      "description": "End-use category aligned with ComStock/ResStock end-use breakdowns"
+    },
+    "fuel_type": {
+      "type": "string",
+      "enum": ["electricity", "natural_gas", "propane", "fuel_oil", "other"],
+      "description": "Fuel type for non-electric assets"
+    }
+  },
+  "if": {
+    "properties": {
+      "direction": { "const": "generation" }
+    }
+  },
+  "then": {
+    "properties": {
+      "kWh": { "minimum": 0 }
+    }
+  },
+  "additionalProperties": false
+}
