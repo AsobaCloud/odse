@@ -3,13 +3,14 @@
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-ODS-E is an open specification for standardizing energy asset data from IoT devices, enabling interoperability across the renewable energy ecosystem.
+ODS-E is an open specification for standardizing energy asset data from IoT devices, enabling interoperability across the energy ecosystem — generation, consumption, and net metering.
 
 ## Why ODS-E?
 
 - **No Vendor Lock-in**: Your data works with any ODS-E compatible system
-- **Faster Integrations**: Pre-built transforms for common OEMs (Huawei, Enphase, Solarman, Switch, SolaX, FIMER)
+- **Faster Integrations**: Pre-built transforms for common OEMs (Huawei, Enphase, Solarman, Switch, SolaX, FIMER) plus consumption and net-metering schemas
 - **Analytics-Ready**: Standardized error taxonomy and semantic validation
+- **Building-Ready**: Optional building metadata aligned with NREL ComStock/ResStock for benchmark integration
 - **Future-Proof**: CC-BY-SA licensed specification ensures extensions stay open
 
 ## Quick Start
@@ -32,6 +33,15 @@ switch_data = transform("switch_meter.csv", source="switch")
 
 # Transform SolaXCloud realtime JSON payload
 solax_data = transform("solax_realtime.json", source="solaxcloud")
+
+# Validate a consumption record
+result = validate({
+    "timestamp": "2026-02-05T14:00:00Z",
+    "kWh": 12.3,
+    "error_type": "normal",
+    "direction": "consumption",
+    "end_use": "cooling"
+})
 ```
 
 ## Repository Structure
@@ -49,6 +59,8 @@ ona-protocol/
 
 ## Core Schema
 
+Generation record (backward-compatible):
+
 ```json
 {
   "timestamp": "2026-02-05T14:00:00Z",
@@ -58,10 +70,35 @@ ona-protocol/
 }
 ```
 
+Consumption record with end-use tagging:
+
+```json
+{
+  "timestamp": "2026-02-05T14:00:00Z",
+  "kWh": 12.3,
+  "error_type": "normal",
+  "direction": "consumption",
+  "end_use": "cooling",
+  "fuel_type": "electricity"
+}
+```
+
 **Required fields:**
-- `timestamp` - ISO 8601 with timezone
-- `kWh` - Active energy (≥ 0)
-- `error_type` - One of: `normal`, `warning`, `critical`, `fault`, `offline`, `standby`, `unknown`
+- `timestamp` — ISO 8601 with timezone
+- `kWh` — Active energy in kilowatt-hours (≥ 0 for generation/consumption; may be negative for net)
+- `error_type` — One of: `normal`, `warning`, `critical`, `fault`, `offline`, `standby`, `unknown`
+
+**Optional fields:**
+- `direction` — `generation` (default), `consumption`, or `net`
+- `end_use` — ComStock/ResStock-aligned category (e.g., `cooling`, `heating`, `interior_lighting`, `whole_building`)
+- `fuel_type` — `electricity`, `natural_gas`, `propane`, `fuel_oil`, or `other`
+- `PF`, `kVA`, `kVArh`, `error_code` — power quality and OEM error fields
+
+## Beyond Generation
+
+ODS-E covers the full energy lifecycle: generation (solar, wind, CHP), consumption (grid meters, sub-meters, HVAC), and net metering. The `asset-metadata.json` schema includes an `asset_type` taxonomy (solar_pv, grid_meter, ev_charger, etc.) and an optional `building` object with ComStock/ResStock-compatible fields — building type, climate zone, vintage, floor area, and location — enabling partners to join ODS-E data to NREL building energy benchmarks.
+
+See [ComStock/ResStock Integration Guide](spec/comstock-integration.md) for field mappings and example queries.
 
 ## Supported OEMs
 
@@ -94,6 +131,7 @@ ona-protocol/
 - [Contributing](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
+- [ComStock/ResStock Integration](spec/comstock-integration.md)
 - [Changelog](CHANGELOG.md)
 - [Roadmap](ROADMAP.md)
 

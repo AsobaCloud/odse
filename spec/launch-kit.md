@@ -2,7 +2,7 @@
 
 This package is designed for immediate outreach to climate-tech partners, accelerators, and deployment teams.
 
-Last updated: 2026-02-10
+Last updated: 2026-02-16
 
 ## 1) Release Notes Template
 
@@ -63,6 +63,15 @@ Publish this matrix in docs and outreach posts.
 | SolaX | Yes | Yes | Account-required | SolaX tokenId |
 | Solarman | Yes | Yes | Account/file feed | Logger exports/API |
 
+### Consumption & Net Metering Sources (Schema Ready)
+
+| Source Type | Schema Support | Runtime Transform | Notes |
+|-------------|---------------|-------------------|-------|
+| Grid meter (consumption) | Yes (`direction: consumption`) | Planned | Via utility CSV / Green Button |
+| Net meter | Yes (`direction: net`) | Planned | kWh may be negative |
+| Sub-meter (end-use) | Yes (`end_use` field) | Planned | ComStock-aligned categories |
+| Non-electric (gas, propane) | Yes (`fuel_type` field) | Planned | Supports multi-fuel buildings |
+
 ### Matrix Rules
 
 - `Transform Spec` means YAML transform spec exists in `transforms/`.
@@ -98,6 +107,22 @@ Run only demo-friendly live candidates:
 PYTHONPATH=src/python python3 tools/transform_harness.py --mode live --oems enphase,sma,fronius
 ```
 
+### Validate a Consumption Record
+
+```python
+from odse import validate
+
+result = validate({
+    "timestamp": "2026-02-16T10:00:00Z",
+    "kWh": 3.7,
+    "error_type": "normal",
+    "direction": "consumption",
+    "end_use": "cooling",
+    "fuel_type": "electricity"
+})
+print(result.is_valid)  # True
+```
+
 ## 4) Design Partner Onboarding Checklist
 
 Use this with each external pilot entity.
@@ -107,9 +132,11 @@ Use this with each external pilot entity.
 3. Run harness in `fixture` mode and capture baseline.
 4. Run harness in `live` mode for agreed OEMs and capture output.
 5. Validate transformed records include `timestamp`, `kWh`, and `error_type`.
-6. Record any OEM-specific normalization assumptions.
-7. Confirm data retention, rate-limit, and retry policy.
-8. Finalize “go/no-go” decision for production connector rollout.
+6. If consumption/building use case: confirm `direction`, `end_use`, and `fuel_type` field usage.
+7. If building benchmark use case: populate `building` metadata in asset-metadata (see [ComStock/ResStock Integration](comstock-integration.md)).
+8. Record any OEM-specific normalization assumptions.
+9. Confirm data retention, rate-limit, and retry policy.
+10. Finalize "go/no-go" decision for production connector rollout.
 
 ## 5) Promotion Assets Checklist
 
@@ -121,3 +148,4 @@ Before public promotion, ensure these exist:
 - One short architecture diagram (ingest -> transform -> validate -> consumer).
 - Security/privacy statement for credential handling.
 - Contribution guide for adding OEM mappings and tests.
+- ComStock/ResStock integration stub for building performance partners ([spec/comstock-integration.md](comstock-integration.md)).
