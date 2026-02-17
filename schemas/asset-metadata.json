@@ -38,6 +38,45 @@
         "grid_connection_point": {
           "type": "string",
           "description": "Grid connection identifier"
+        },
+        "country_code": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "ISO 3166-1 alpha-2 country code (e.g., ZA)."
+        },
+        "municipality_id": {
+          "type": "string",
+          "pattern": "^za\\.[a-z0-9_-]+\\.[a-z0-9_-]+$",
+          "description": "Canonical municipality identifier in za.province.municipality form."
+        },
+        "municipality_name": {
+          "type": "string",
+          "description": "Human-readable municipality name."
+        },
+        "distribution_zone": {
+          "type": "string",
+          "description": "Distribution or tariff zone identifier within the municipality or utility."
+        },
+        "feeder_id": {
+          "type": "string",
+          "description": "Distribution feeder identifier."
+        },
+        "voltage_level": {
+          "type": "string",
+          "enum": ["LV", "MV", "HV", "EHV"],
+          "description": "Grid voltage class at the connection point."
+        },
+        "meter_id": {
+          "type": "string",
+          "description": "Utility or municipal meter identifier."
+        },
+        "connection_point_id": {
+          "type": "string",
+          "description": "Canonical connection point identifier."
+        },
+        "licensed_service_area": {
+          "type": "string",
+          "description": "Licensed service area code or descriptor for the serving distributor."
         }
       }
     },

@@ -9,6 +9,9 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 ### Added
 
 - Municipal emissions modeling guide for US jurisdictions, including how-to workflows and project starter blueprints for ComStock/ResStock-based disaggregation.
+- Market context extension spec for settlement party IDs, tariff context, and municipal/grid topology (`spec/market-context.md`).
+- Optional settlement and tariff fields in `schemas/energy-timeseries.json` for bilateral/wheeling settlement and TOU-aware billing contexts.
+- Optional South Africa-ready municipal/grid topology fields in `schemas/asset-metadata.json` location metadata.
 - TBD
 
 ### Changed

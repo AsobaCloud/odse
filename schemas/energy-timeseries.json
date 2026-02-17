@@ -59,6 +59,75 @@
       "type": "string",
       "enum": ["electricity", "natural_gas", "propane", "fuel_oil", "other"],
       "description": "Fuel type for non-electric assets"
+    },
+    "seller_party_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$",
+      "description": "Canonical seller identifier in authority:type:id format."
+    },
+    "buyer_party_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$",
+      "description": "Canonical buyer identifier in authority:type:id format."
+    },
+    "network_operator_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$",
+      "description": "Canonical network operator identifier in authority:type:id format."
+    },
+    "wheeling_agent_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$",
+      "description": "Canonical wheeling/intermediary identifier in authority:type:id format."
+    },
+    "settlement_period_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Settlement period start in ISO 8601 format."
+    },
+    "settlement_period_end": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Settlement period end in ISO 8601 format."
+    },
+    "loss_factor": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Applied loss factor for settlement (for example 0.03 for 3%)."
+    },
+    "contract_reference": {
+      "type": "string",
+      "description": "Contract or schedule reference (PPA, bilateral deal, or wheeling schedule)."
+    },
+    "tariff_schedule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:v[0-9]+$",
+      "description": "Canonical tariff schedule identifier in authority:municipality:code:vN format."
+    },
+    "tariff_period": {
+      "type": "string",
+      "enum": ["peak", "standard", "off_peak", "critical_peak"],
+      "description": "Tariff period classification for the interval."
+    },
+    "tariff_currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 currency code for tariff components."
+    },
+    "tariff_version_effective_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the tariff version became effective."
+    },
+    "energy_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Energy charge amount applied to this interval."
+    },
+    "network_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Network charge amount applied to this interval."
     }
   },
   "if": {
