@@ -27,6 +27,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Transform harness usage](tools/transform_harness.py)
 - [Inverter API access setup](spec/inverter-api-access.md)
 - [ComStock/ResStock integration](spec/comstock-integration.md)
+- [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 
 ## Project
 

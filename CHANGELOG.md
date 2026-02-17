@@ -8,6 +8,7 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ### Added
 
+- Municipal emissions modeling guide for US jurisdictions, including how-to workflows and project starter blueprints for ComStock/ResStock-based disaggregation.
 - TBD
 
 ### Changed
