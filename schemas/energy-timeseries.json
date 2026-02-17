@@ -128,6 +128,131 @@
       "type": "number",
       "minimum": 0,
       "description": "Network charge amount applied to this interval."
+    },
+    "wheeling_type": {
+      "type": "string",
+      "enum": ["traditional", "virtual", "portfolio"],
+      "description": "Wheeling model for this transaction."
+    },
+    "injection_point_id": {
+      "type": "string",
+      "description": "Grid injection point identifier for the wheeling path."
+    },
+    "offtake_point_id": {
+      "type": "string",
+      "description": "Grid offtake point identifier for the wheeling path."
+    },
+    "wheeling_status": {
+      "type": "string",
+      "enum": ["provisional", "confirmed", "reconciled", "disputed"],
+      "description": "Reconciliation status of this wheeling record."
+    },
+    "wheeling_path_id": {
+      "type": "string",
+      "description": "Reference to a registered wheeling path or schedule."
+    },
+    "generation_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Unbundled generation charge for this interval."
+    },
+    "transmission_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Transmission use-of-system charge for this interval."
+    },
+    "distribution_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Distribution network charge for this interval."
+    },
+    "ancillary_service_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Ancillary services levy for this interval."
+    },
+    "non_bypassable_charge_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Non-bypassable charges for this interval (cross-subsidies, FBE contributions)."
+    },
+    "environmental_levy_component": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Environmental or carbon levy for this interval."
+    },
+    "curtailment_flag": {
+      "type": "boolean",
+      "description": "Whether generation was curtailed during this interval."
+    },
+    "curtailment_type": {
+      "type": "string",
+      "enum": ["congestion", "frequency", "voltage", "instruction", "other"],
+      "description": "Reason for curtailment."
+    },
+    "curtailed_kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated generation lost to curtailment during this interval."
+    },
+    "curtailment_instruction_id": {
+      "type": "string",
+      "description": "Reference to the system operator dispatch instruction."
+    },
+    "balance_responsible_party_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$",
+      "description": "BRP assigned for this connection point and interval."
+    },
+    "forecast_kWh": {
+      "type": "number",
+      "description": "Nominated or scheduled volume for this interval."
+    },
+    "settlement_type": {
+      "type": "string",
+      "enum": ["bilateral", "sawem_day_ahead", "sawem_intra_day", "balancing", "ancillary"],
+      "description": "Market segment for settlement."
+    },
+    "imbalance_kWh": {
+      "type": "number",
+      "description": "Difference between forecast and actual (positive = over-delivery, negative = under-delivery)."
+    },
+    "billing_period": {
+      "type": "string",
+      "description": "Billing cycle reference (e.g., 2026-02 for monthly, 2026-W07 for weekly)."
+    },
+    "billed_kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Billed quantity for this interval (may differ from metered kWh)."
+    },
+    "billing_status": {
+      "type": "string",
+      "enum": ["metered", "estimated", "adjusted", "disputed"],
+      "description": "Data quality or origin of the billed quantity."
+    },
+    "daa_reference": {
+      "type": "string",
+      "description": "Distribution Agency Agreement reference if under a DAA with Eskom Distribution."
+    },
+    "renewable_attribute_id": {
+      "type": "string",
+      "description": "Certificate or credit identifier (e.g., I-REC tracking number)."
+    },
+    "certificate_standard": {
+      "type": "string",
+      "enum": ["i_rec", "rego", "go", "rec", "tigr", "other"],
+      "description": "Certificate scheme under which the renewable attribute is issued."
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": ["pending", "issued", "retired", "cancelled"],
+      "description": "Lifecycle status of the renewable attribute."
+    },
+    "carbon_intensity_gCO2_per_kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Carbon intensity of the generation source in grams CO2e per kWh."
     }
   },
   "if": {

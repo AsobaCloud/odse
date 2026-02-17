@@ -29,6 +29,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [ComStock/ResStock integration](spec/comstock-integration.md)
 - [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 - [Market context extensions (settlement, tariff, topology)](spec/market-context.md)
+- [Market reform extensions (wheeling, curtailment, BRP, certificates)](spec/market-reform-extensions.md)
 
 ## Project
 

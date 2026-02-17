@@ -77,6 +77,30 @@
         "licensed_service_area": {
           "type": "string",
           "description": "Licensed service area code or descriptor for the serving distributor."
+        },
+        "connection_status": {
+          "type": "string",
+          "enum": ["applied", "pre_feasibility", "reserved", "allocated", "connected", "decommissioned"],
+          "description": "Grid connection lifecycle status per GCAR milestones."
+        },
+        "allocated_capacity_kw": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Allocated grid capacity in kilowatts."
+        },
+        "connection_agreement_ref": {
+          "type": "string",
+          "description": "Connection or use-of-system agreement reference."
+        },
+        "grid_access_queue_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date entered the capacity allocation queue (ISO 8601 date)."
+        },
+        "gcar_milestone": {
+          "type": "string",
+          "enum": ["pre_feasibility", "capacity_reservation", "capacity_allocation"],
+          "description": "Current GCAR milestone for this connection."
         }
       }
     },
