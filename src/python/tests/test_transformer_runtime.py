@@ -297,6 +297,289 @@ class EnergyTimeseriesValidationTests(unittest.TestCase):
         self.assertEqual(len(result.warnings), 1)
         self.assertEqual(result.warnings[0].code, "EXCEEDS_PHYSICAL_MAXIMUM")
 
+    # --- Unchecked base fields ---
+
+    def test_error_code_string_accepted(self):
+        result = validate(self._base_record(error_code="E101"))
+        self.assertTrue(result.is_valid)
+
+    def test_error_code_non_string_rejected(self):
+        result = validate(self._base_record(error_code=101))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    def test_kvarh_number_accepted(self):
+        result = validate(self._base_record(kVArh=1.5))
+        self.assertTrue(result.is_valid)
+
+    def test_kvarh_non_number_rejected(self):
+        result = validate(self._base_record(kVArh="bad"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    def test_kva_valid_accepted(self):
+        result = validate(self._base_record(kVA=10.0))
+        self.assertTrue(result.is_valid)
+
+    def test_kva_negative_rejected(self):
+        result = validate(self._base_record(kVA=-1.0))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    # --- Party IDs ---
+
+    def test_valid_party_ids_accepted(self):
+        result = validate(self._base_record(
+            seller_party_id="nersa:gen:ABC001",
+            buyer_party_id="nersa:offtaker:MUN042",
+            network_operator_id="nersa:dso:eskom-tx",
+            wheeling_agent_id="nersa:agent:wesco.1",
+            balance_responsible_party_id="nersa:brp:BRP-01",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_invalid_seller_party_id_pattern_rejected(self):
+        result = validate(self._base_record(seller_party_id="bad id!"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "PATTERN_MISMATCH")
+
+    def test_invalid_buyer_party_id_pattern_rejected(self):
+        result = validate(self._base_record(buyer_party_id="no-colons"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "PATTERN_MISMATCH")
+
+    def test_party_id_non_string_rejected(self):
+        result = validate(self._base_record(network_operator_id=123))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    # --- Settlement ---
+
+    def test_valid_settlement_fields_accepted(self):
+        result = validate(self._base_record(
+            settlement_period_start="2026-02-09T00:00:00Z",
+            settlement_period_end="2026-02-09T00:30:00Z",
+            loss_factor=0.03,
+            contract_reference="PPA-2026-001",
+            settlement_type="bilateral",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_negative_loss_factor_rejected(self):
+        result = validate(self._base_record(loss_factor=-0.01))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_invalid_settlement_type_rejected(self):
+        result = validate(self._base_record(settlement_type="spot"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_settlement_period_start_non_string_rejected(self):
+        result = validate(self._base_record(settlement_period_start=12345))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    # --- Tariff ---
+
+    def test_valid_tariff_fields_accepted(self):
+        result = validate(self._base_record(
+            tariff_schedule_id="nersa:capetown:RES01:v3",
+            tariff_period="peak",
+            tariff_currency="ZAR",
+            tariff_version_effective_at="2026-01-01T00:00:00Z",
+            energy_charge_component=1.85,
+            network_charge_component=0.42,
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_invalid_tariff_schedule_id_rejected(self):
+        result = validate(self._base_record(tariff_schedule_id="bad-format"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "PATTERN_MISMATCH")
+
+    def test_invalid_tariff_period_rejected(self):
+        result = validate(self._base_record(tariff_period="super_peak"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_invalid_tariff_currency_rejected(self):
+        result = validate(self._base_record(tariff_currency="zar"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "PATTERN_MISMATCH")
+
+    def test_negative_energy_charge_rejected(self):
+        result = validate(self._base_record(energy_charge_component=-0.5))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_negative_network_charge_rejected(self):
+        result = validate(self._base_record(network_charge_component=-1))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    # --- Granular charge components ---
+
+    def test_valid_granular_charges_accepted(self):
+        result = validate(self._base_record(
+            generation_charge_component=0.50,
+            transmission_charge_component=0.12,
+            distribution_charge_component=0.30,
+            ancillary_service_charge_component=0.05,
+            non_bypassable_charge_component=0.02,
+            environmental_levy_component=0.01,
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_negative_generation_charge_rejected(self):
+        result = validate(self._base_record(generation_charge_component=-0.1))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_non_number_distribution_charge_rejected(self):
+        result = validate(self._base_record(distribution_charge_component="free"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    def test_negative_environmental_levy_rejected(self):
+        result = validate(self._base_record(environmental_levy_component=-0.01))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    # --- Wheeling ---
+
+    def test_valid_wheeling_fields_accepted(self):
+        result = validate(self._base_record(
+            wheeling_type="virtual",
+            wheeling_status="confirmed",
+            injection_point_id="INJ-001",
+            offtake_point_id="OFT-002",
+            wheeling_path_id="WP-2026-001",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_invalid_wheeling_type_rejected(self):
+        result = validate(self._base_record(wheeling_type="direct"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_invalid_wheeling_status_rejected(self):
+        result = validate(self._base_record(wheeling_status="pending"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_wheeling_path_id_non_string_rejected(self):
+        result = validate(self._base_record(wheeling_path_id=999))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    # --- Curtailment ---
+
+    def test_valid_curtailment_fields_accepted(self):
+        result = validate(self._base_record(
+            curtailment_flag=True,
+            curtailment_type="congestion",
+            curtailed_kWh=2.5,
+            curtailment_instruction_id="SO-INST-001",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_curtailment_flag_non_boolean_rejected(self):
+        result = validate(self._base_record(curtailment_flag=1))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    def test_invalid_curtailment_type_rejected(self):
+        result = validate(self._base_record(curtailment_type="economic"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_negative_curtailed_kwh_rejected(self):
+        result = validate(self._base_record(curtailed_kWh=-1.0))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    # --- BRP / Imbalance ---
+
+    def test_valid_brp_fields_accepted(self):
+        result = validate(self._base_record(
+            forecast_kWh=5.5,
+            imbalance_kWh=-0.5,
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_negative_imbalance_accepted(self):
+        """imbalance_kWh can be negative (under-delivery)."""
+        result = validate(self._base_record(imbalance_kWh=-3.0))
+        self.assertTrue(result.is_valid)
+
+    def test_forecast_kwh_non_number_rejected(self):
+        result = validate(self._base_record(forecast_kWh="five"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    def test_imbalance_kwh_non_number_rejected(self):
+        result = validate(self._base_record(imbalance_kWh=True))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    # --- Municipal billing ---
+
+    def test_valid_billing_fields_accepted(self):
+        result = validate(self._base_record(
+            billing_period="2026-02",
+            billed_kWh=150.0,
+            billing_status="metered",
+            daa_reference="DAA-2026-042",
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_negative_billed_kwh_rejected(self):
+        result = validate(self._base_record(billed_kWh=-10.0))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_invalid_billing_status_rejected(self):
+        result = validate(self._base_record(billing_status="pending"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_billing_period_non_string_rejected(self):
+        result = validate(self._base_record(billing_period=202602))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
+    # --- Certificates ---
+
+    def test_valid_certificate_fields_accepted(self):
+        result = validate(self._base_record(
+            renewable_attribute_id="IREC-ZA-2026-00001",
+            certificate_standard="i_rec",
+            verification_status="issued",
+            carbon_intensity_gCO2_per_kWh=0.0,
+        ))
+        self.assertTrue(result.is_valid)
+
+    def test_invalid_certificate_standard_rejected(self):
+        result = validate(self._base_record(certificate_standard="gold_standard"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_invalid_verification_status_rejected(self):
+        result = validate(self._base_record(verification_status="approved"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "ENUM_MISMATCH")
+
+    def test_negative_carbon_intensity_rejected(self):
+        result = validate(self._base_record(carbon_intensity_gCO2_per_kWh=-5.0))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "OUT_OF_BOUNDS")
+
+    def test_carbon_intensity_non_number_rejected(self):
+        result = validate(self._base_record(carbon_intensity_gCO2_per_kWh="low"))
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
+
 
 if __name__ == "__main__":
     unittest.main()

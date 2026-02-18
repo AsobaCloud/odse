@@ -5,6 +5,7 @@ Validates energy data against ODS-E JSON schemas.
 """
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
@@ -96,6 +97,84 @@ def validate_file(
     return validate(Path(file_path), level=level, **kwargs)
 
 
+def _check_optional_type(
+    data: dict, field: str, expected_type: str, errors: list, type_label: str,
+) -> None:
+    """Type check for an optional field. Skips if field is absent."""
+    if field not in data:
+        return
+    value = data[field]
+    if expected_type == "string":
+        if not isinstance(value, str):
+            errors.append(ValidationError(
+                path=f"$.{field}",
+                message=f"Expected {type_label}, got {type(value).__name__}",
+                code="TYPE_MISMATCH",
+            ))
+    elif expected_type == "number":
+        if type(value) is bool or not isinstance(value, (int, float)):
+            errors.append(ValidationError(
+                path=f"$.{field}",
+                message=f"Expected {type_label}, got {type(value).__name__}",
+                code="TYPE_MISMATCH",
+            ))
+    elif expected_type == "boolean":
+        if type(value) is not bool:
+            errors.append(ValidationError(
+                path=f"$.{field}",
+                message=f"Expected {type_label}, got {type(value).__name__}",
+                code="TYPE_MISMATCH",
+            ))
+
+
+def _check_optional_enum(
+    data: dict, field: str, valid_values: list, errors: list,
+) -> None:
+    """Enum check for an optional field. Skips if field is absent."""
+    if field not in data:
+        return
+    if data[field] not in valid_values:
+        errors.append(ValidationError(
+            path=f"$.{field}",
+            message=f"Value '{data[field]}' not in enum {valid_values}",
+            code="ENUM_MISMATCH",
+        ))
+
+
+def _check_optional_minimum(
+    data: dict, field: str, minimum: float, errors: list,
+) -> None:
+    """Lower-bound check for an optional numeric field. Skips if absent or wrong type."""
+    if field not in data:
+        return
+    value = data[field]
+    if type(value) is bool or not isinstance(value, (int, float)):
+        return
+    if value < minimum:
+        errors.append(ValidationError(
+            path=f"$.{field}",
+            message=f"{field} must be >= {minimum}",
+            code="OUT_OF_BOUNDS",
+        ))
+
+
+def _check_optional_pattern(
+    data: dict, field: str, pattern: str, errors: list,
+) -> None:
+    """Regex pattern check for an optional string field. Skips if absent or wrong type."""
+    if field not in data:
+        return
+    value = data[field]
+    if not isinstance(value, str):
+        return
+    if not re.match(pattern, value):
+        errors.append(ValidationError(
+            path=f"$.{field}",
+            message=f"Value '{value}' does not match pattern '{pattern}'",
+            code="PATTERN_MISMATCH",
+        ))
+
+
 def _validate_schema(data: dict) -> List[ValidationError]:
     """Validate against JSON schema."""
     errors = []
@@ -133,34 +212,18 @@ def _validate_schema(data: dict) -> List[ValidationError]:
             code="ENUM_MISMATCH",
         ))
 
-    valid_directions = ["generation", "consumption", "net"]
-    if "direction" in data and data["direction"] not in valid_directions:
-        errors.append(ValidationError(
-            path="$.direction",
-            message=f"Value '{data['direction']}' not in enum {valid_directions}",
-            code="ENUM_MISMATCH",
-        ))
+    _check_optional_enum(data, "direction",
+                         ["generation", "consumption", "net"], errors)
 
-    valid_end_uses = [
+    _check_optional_enum(data, "end_use", [
         "cooling", "heating", "fans", "pumps", "water_systems",
         "interior_lighting", "exterior_lighting", "interior_equipment",
         "refrigeration", "cooking", "laundry", "ev_charging",
         "pv_generation", "battery_storage", "whole_building", "other",
-    ]
-    if "end_use" in data and data["end_use"] not in valid_end_uses:
-        errors.append(ValidationError(
-            path="$.end_use",
-            message=f"Value '{data['end_use']}' not in enum {valid_end_uses}",
-            code="ENUM_MISMATCH",
-        ))
+    ], errors)
 
-    valid_fuel_types = ["electricity", "natural_gas", "propane", "fuel_oil", "other"]
-    if "fuel_type" in data and data["fuel_type"] not in valid_fuel_types:
-        errors.append(ValidationError(
-            path="$.fuel_type",
-            message=f"Value '{data['fuel_type']}' not in enum {valid_fuel_types}",
-            code="ENUM_MISMATCH",
-        ))
+    _check_optional_enum(data, "fuel_type",
+                         ["electricity", "natural_gas", "propane", "fuel_oil", "other"], errors)
 
     # Bounds validation — kWh >= 0 except for net direction
     direction = data.get("direction", "generation")
@@ -171,6 +234,7 @@ def _validate_schema(data: dict) -> List[ValidationError]:
             code="OUT_OF_BOUNDS",
         ))
 
+    # PF bounds (0..1)
     if "PF" in data:
         pf = data["PF"]
         if isinstance(pf, (int, float)) and (pf < 0 or pf > 1):
@@ -179,6 +243,92 @@ def _validate_schema(data: dict) -> List[ValidationError]:
                 message="Power factor must be between 0 and 1",
                 code="OUT_OF_BOUNDS",
             ))
+
+    # --- Unchecked base fields ---
+    _check_optional_type(data, "error_code", "string", errors, "string")
+    _check_optional_type(data, "kVArh", "number", errors, "number")
+    _check_optional_type(data, "kVA", "number", errors, "number")
+    _check_optional_minimum(data, "kVA", 0, errors)
+
+    # --- Party IDs ---
+    _party_id_pattern = r"^[a-z0-9._-]+:[a-z0-9._-]+:[a-zA-Z0-9._-]+$"
+    for pid_field in [
+        "seller_party_id", "buyer_party_id", "network_operator_id",
+        "wheeling_agent_id", "balance_responsible_party_id",
+    ]:
+        _check_optional_type(data, pid_field, "string", errors, "string")
+        _check_optional_pattern(data, pid_field, _party_id_pattern, errors)
+
+    # --- Settlement ---
+    _check_optional_type(data, "settlement_period_start", "string", errors, "string")
+    _check_optional_type(data, "settlement_period_end", "string", errors, "string")
+    _check_optional_type(data, "loss_factor", "number", errors, "number")
+    _check_optional_minimum(data, "loss_factor", 0, errors)
+    _check_optional_type(data, "contract_reference", "string", errors, "string")
+    _check_optional_enum(data, "settlement_type", [
+        "bilateral", "sawem_day_ahead", "sawem_intra_day", "balancing", "ancillary",
+    ], errors)
+
+    # --- Tariff ---
+    _check_optional_type(data, "tariff_schedule_id", "string", errors, "string")
+    _check_optional_pattern(data, "tariff_schedule_id",
+                            r"^[a-z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:v[0-9]+$", errors)
+    _check_optional_enum(data, "tariff_period",
+                         ["peak", "standard", "off_peak", "critical_peak"], errors)
+    _check_optional_type(data, "tariff_currency", "string", errors, "string")
+    _check_optional_pattern(data, "tariff_currency", r"^[A-Z]{3}$", errors)
+    _check_optional_type(data, "tariff_version_effective_at", "string", errors, "string")
+    _check_optional_type(data, "energy_charge_component", "number", errors, "number")
+    _check_optional_minimum(data, "energy_charge_component", 0, errors)
+    _check_optional_type(data, "network_charge_component", "number", errors, "number")
+    _check_optional_minimum(data, "network_charge_component", 0, errors)
+
+    # --- Granular charge components ---
+    for charge_field in [
+        "generation_charge_component", "transmission_charge_component",
+        "distribution_charge_component", "ancillary_service_charge_component",
+        "non_bypassable_charge_component", "environmental_levy_component",
+    ]:
+        _check_optional_type(data, charge_field, "number", errors, "number")
+        _check_optional_minimum(data, charge_field, 0, errors)
+
+    # --- Wheeling ---
+    _check_optional_enum(data, "wheeling_type",
+                         ["traditional", "virtual", "portfolio"], errors)
+    _check_optional_enum(data, "wheeling_status",
+                         ["provisional", "confirmed", "reconciled", "disputed"], errors)
+    _check_optional_type(data, "injection_point_id", "string", errors, "string")
+    _check_optional_type(data, "offtake_point_id", "string", errors, "string")
+    _check_optional_type(data, "wheeling_path_id", "string", errors, "string")
+
+    # --- Curtailment ---
+    _check_optional_type(data, "curtailment_flag", "boolean", errors, "boolean")
+    _check_optional_enum(data, "curtailment_type",
+                         ["congestion", "frequency", "voltage", "instruction", "other"], errors)
+    _check_optional_type(data, "curtailed_kWh", "number", errors, "number")
+    _check_optional_minimum(data, "curtailed_kWh", 0, errors)
+    _check_optional_type(data, "curtailment_instruction_id", "string", errors, "string")
+
+    # --- BRP / Imbalance ---
+    _check_optional_type(data, "forecast_kWh", "number", errors, "number")
+    _check_optional_type(data, "imbalance_kWh", "number", errors, "number")
+
+    # --- Municipal billing ---
+    _check_optional_type(data, "billing_period", "string", errors, "string")
+    _check_optional_type(data, "billed_kWh", "number", errors, "number")
+    _check_optional_minimum(data, "billed_kWh", 0, errors)
+    _check_optional_enum(data, "billing_status",
+                         ["metered", "estimated", "adjusted", "disputed"], errors)
+    _check_optional_type(data, "daa_reference", "string", errors, "string")
+
+    # --- Certificates ---
+    _check_optional_type(data, "renewable_attribute_id", "string", errors, "string")
+    _check_optional_enum(data, "certificate_standard",
+                         ["i_rec", "rego", "go", "rec", "tigr", "other"], errors)
+    _check_optional_enum(data, "verification_status",
+                         ["pending", "issued", "retired", "cancelled"], errors)
+    _check_optional_type(data, "carbon_intensity_gCO2_per_kWh", "number", errors, "number")
+    _check_optional_minimum(data, "carbon_intensity_gCO2_per_kWh", 0, errors)
 
     return errors
 
