@@ -581,5 +581,146 @@ class EnergyTimeseriesValidationTests(unittest.TestCase):
         self.assertEqual(result.errors[0].code, "TYPE_MISMATCH")
 
 
+class ConformanceProfileValidationTests(unittest.TestCase):
+    """Tests for SEP-002 SA trading conformance profiles."""
+
+    def _base_record(self, **overrides):
+        record = {
+            "timestamp": "2026-02-18T12:00:00Z",
+            "kWh": 5.0,
+            "error_type": "normal",
+        }
+        record.update(overrides)
+        return record
+
+    def _bilateral_record(self, **overrides):
+        record = self._base_record(
+            seller_party_id="nersa:gen:SOLARPK-001",
+            buyer_party_id="nersa:offtaker:MUN042",
+            settlement_period_start="2026-02-18T14:00:00+02:00",
+            settlement_period_end="2026-02-18T14:30:00+02:00",
+            contract_reference="PPA-SOLARPK-MUN042-2025-003",
+            settlement_type="bilateral",
+        )
+        record.update(overrides)
+        return record
+
+    def _wheeling_record(self, **overrides):
+        record = self._bilateral_record(
+            network_operator_id="nersa:dso:eskom-tx",
+            wheeling_type="virtual",
+            injection_point_id="NCAPE-SOLAR-GEN-12",
+            offtake_point_id="CCT-DIST-MV-BELLVILLE-03",
+            wheeling_status="confirmed",
+            loss_factor=0.032,
+        )
+        record.update(overrides)
+        return record
+
+    def _sawem_brp_record(self, **overrides):
+        record = self._base_record(
+            seller_party_id="nersa:gen:WINDCO-007",
+            balance_responsible_party_id="nersa:brp:BRP-01",
+            settlement_type="sawem_day_ahead",
+            forecast_kWh=320.0,
+            settlement_period_start="2026-02-18T15:00:00+02:00",
+            settlement_period_end="2026-02-18T15:30:00+02:00",
+        )
+        record.update(overrides)
+        return record
+
+    def _municipal_recon_record(self, **overrides):
+        record = self._base_record(
+            buyer_party_id="za-city-emfuleni:municipality:EMF",
+            billing_period="2026-02",
+            billed_kWh=44.8,
+            billing_status="adjusted",
+        )
+        record.update(overrides)
+        return record
+
+    # --- bilateral ---
+
+    def test_bilateral_profile_valid_record(self):
+        result = validate(self._bilateral_record(), profile="bilateral")
+        self.assertTrue(result.is_valid)
+
+    def test_bilateral_profile_missing_field_rejected(self):
+        record = self._bilateral_record()
+        del record["contract_reference"]
+        result = validate(record, profile="bilateral")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("PROFILE_FIELD_MISSING", codes)
+
+    def test_bilateral_profile_wrong_settlement_type_rejected(self):
+        record = self._bilateral_record(settlement_type="sawem_day_ahead")
+        result = validate(record, profile="bilateral")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("PROFILE_VALUE_MISMATCH", codes)
+
+    # --- wheeling ---
+
+    def test_wheeling_profile_valid_record(self):
+        result = validate(self._wheeling_record(), profile="wheeling")
+        self.assertTrue(result.is_valid)
+
+    def test_wheeling_profile_missing_wheeling_fields_rejected(self):
+        record = self._bilateral_record()  # missing wheeling-specific fields
+        result = validate(record, profile="wheeling")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("PROFILE_FIELD_MISSING", codes)
+        missing_fields = [e.path for e in result.errors if e.code == "PROFILE_FIELD_MISSING"]
+        self.assertIn("$.network_operator_id", missing_fields)
+
+    # --- sawem_brp ---
+
+    def test_sawem_brp_profile_valid_record(self):
+        result = validate(self._sawem_brp_record(), profile="sawem_brp")
+        self.assertTrue(result.is_valid)
+
+    def test_sawem_brp_profile_bilateral_type_rejected(self):
+        record = self._sawem_brp_record(settlement_type="bilateral")
+        result = validate(record, profile="sawem_brp")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("PROFILE_VALUE_MISMATCH", codes)
+
+    # --- municipal_recon ---
+
+    def test_municipal_recon_profile_valid_record(self):
+        result = validate(self._municipal_recon_record(), profile="municipal_recon")
+        self.assertTrue(result.is_valid)
+
+    def test_municipal_recon_profile_missing_field_rejected(self):
+        record = self._municipal_recon_record()
+        del record["billing_status"]
+        result = validate(record, profile="municipal_recon")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("PROFILE_FIELD_MISSING", codes)
+
+    # --- cross-cutting ---
+
+    def test_unknown_profile_rejected(self):
+        result = validate(self._base_record(), profile="not_a_profile")
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.errors[0].code, "UNKNOWN_PROFILE")
+
+    def test_no_profile_skips_validation(self):
+        result = validate(self._base_record())
+        self.assertTrue(result.is_valid)
+
+    def test_profile_skipped_on_schema_errors(self):
+        record = {"kWh": 5.0, "error_type": "normal"}  # missing timestamp
+        result = validate(record, profile="bilateral")
+        self.assertFalse(result.is_valid)
+        codes = [e.code for e in result.errors]
+        self.assertIn("REQUIRED_FIELD_MISSING", codes)
+        self.assertNotIn("PROFILE_FIELD_MISSING", codes)
+
+
 if __name__ == "__main__":
     unittest.main()

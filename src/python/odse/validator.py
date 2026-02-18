@@ -28,12 +28,59 @@ class ValidationResult:
     level: str = "schema"
 
 
+PROFILES = {
+    "bilateral": {
+        "required_fields": [
+            "seller_party_id", "buyer_party_id",
+            "settlement_period_start", "settlement_period_end",
+            "contract_reference", "settlement_type",
+        ],
+        "field_constraints": {
+            "settlement_type": ["bilateral"],
+        },
+    },
+    "wheeling": {
+        "required_fields": [
+            "seller_party_id", "buyer_party_id",
+            "settlement_period_start", "settlement_period_end",
+            "contract_reference", "settlement_type",
+            "network_operator_id", "wheeling_type",
+            "injection_point_id", "offtake_point_id",
+            "wheeling_status", "loss_factor",
+        ],
+        "field_constraints": {
+            "settlement_type": ["bilateral"],
+        },
+    },
+    "sawem_brp": {
+        "required_fields": [
+            "seller_party_id", "balance_responsible_party_id",
+            "settlement_type", "forecast_kWh",
+            "settlement_period_start", "settlement_period_end",
+        ],
+        "field_constraints": {
+            "settlement_type": [
+                "sawem_day_ahead", "sawem_intra_day", "balancing", "ancillary",
+            ],
+        },
+    },
+    "municipal_recon": {
+        "required_fields": [
+            "buyer_party_id", "billing_period",
+            "billed_kWh", "billing_status",
+        ],
+        "field_constraints": {},
+    },
+}
+
+
 def validate(
     data: Union[dict, str, Path],
     level: str = "schema",
     capacity_kw: Optional[float] = None,
     latitude: Optional[float] = None,
     longitude: Optional[float] = None,
+    profile: Optional[str] = None,
 ) -> ValidationResult:
     """
     Validate data against ODS-E energy-timeseries schema.
@@ -44,6 +91,7 @@ def validate(
         capacity_kw: Asset capacity in kW (required for semantic validation)
         latitude: Asset latitude (optional, for nighttime checks)
         longitude: Asset longitude (optional, for nighttime checks)
+        profile: Optional conformance profile name (e.g. "bilateral", "wheeling")
 
     Returns:
         ValidationResult with is_valid status and any errors/warnings
@@ -61,6 +109,10 @@ def validate(
 
     # Schema validation
     errors.extend(_validate_schema(data))
+
+    # Profile validation
+    if profile is not None and not errors:
+        errors.extend(_validate_profile(data, profile))
 
     # Semantic validation
     if level == "semantic" and not errors:
@@ -329,6 +381,39 @@ def _validate_schema(data: dict) -> List[ValidationError]:
                          ["pending", "issued", "retired", "cancelled"], errors)
     _check_optional_type(data, "carbon_intensity_gCO2_per_kWh", "number", errors, "number")
     _check_optional_minimum(data, "carbon_intensity_gCO2_per_kWh", 0, errors)
+
+    return errors
+
+
+def _validate_profile(data: dict, profile_name: str) -> List[ValidationError]:
+    """Validate data against a conformance profile's required fields and value constraints."""
+    errors = []
+
+    if profile_name not in PROFILES:
+        errors.append(ValidationError(
+            path="$",
+            message=f"Unknown profile '{profile_name}'. Valid profiles: {list(PROFILES.keys())}",
+            code="UNKNOWN_PROFILE",
+        ))
+        return errors
+
+    profile = PROFILES[profile_name]
+
+    for field in profile["required_fields"]:
+        if field not in data:
+            errors.append(ValidationError(
+                path=f"$.{field}",
+                message=f"Profile '{profile_name}' requires field '{field}'",
+                code="PROFILE_FIELD_MISSING",
+            ))
+
+    for field, allowed_values in profile["field_constraints"].items():
+        if field in data and data[field] not in allowed_values:
+            errors.append(ValidationError(
+                path=f"$.{field}",
+                message=f"Profile '{profile_name}' requires '{field}' to be one of {allowed_values}, got '{data[field]}'",
+                code="PROFILE_VALUE_MISMATCH",
+            ))
 
     return errors
 

@@ -30,6 +30,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 - [Market context extensions (settlement, tariff, topology)](spec/market-context.md)
 - [Market reform extensions (wheeling, curtailment, BRP, certificates)](spec/market-reform-extensions.md)
+- [SA trading conformance profiles (SEP-002)](spec/conformance-profiles.md)
 
 ## Project
 
