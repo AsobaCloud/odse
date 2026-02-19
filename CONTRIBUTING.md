@@ -58,3 +58,7 @@ Decision and approval rules are defined in `GOVERNANCE.md`.
 
 - Use issue templates in `.github/ISSUE_TEMPLATE`.
 - For vulnerabilities, use `SECURITY.md` instead of public issues.
+
+## Schema Extension Proposals
+
+Changes to schemas or normative field definitions require a Schema Extension Proposal (SEP). Use the "Schema Extension Proposal" issue template and follow the SEP lifecycle documented in `GOVERNANCE.md`.
