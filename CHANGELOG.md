@@ -13,6 +13,7 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 - Optional settlement and tariff fields in `schemas/energy-timeseries.json` for bilateral/wheeling settlement and TOU-aware billing contexts.
 - Optional South Africa-ready municipal/grid topology fields in `schemas/asset-metadata.json` location metadata.
 - Market reform extensions spec aligned with SAETA "Policy to Power" report (`spec/market-reform-extensions.md`).
+- Reference enrichment helper (`odse.enrich`) for post-transform injection of settlement, tariff, and topology context metadata (SEP-003).
 - Wheeling transaction envelope fields in `energy-timeseries.json`: `wheeling_type`, `injection_point_id`, `offtake_point_id`, `wheeling_status`, `wheeling_path_id`.
 - Unbundled tariff component fields in `energy-timeseries.json`: `generation_charge_component`, `transmission_charge_component`, `distribution_charge_component`, `ancillary_service_charge_component`, `non_bypassable_charge_component`, `environmental_levy_component`.
 - Curtailment event tracking fields in `energy-timeseries.json`: `curtailment_flag`, `curtailment_type`, `curtailed_kWh`, `curtailment_instruction_id`.

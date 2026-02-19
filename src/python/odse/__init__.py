@@ -9,5 +9,6 @@ __version__ = "0.1.0"
 
 from .validator import validate, validate_file, PROFILES
 from .transformer import transform, transform_stream
+from .enrichment import enrich
 
-__all__ = ["validate", "validate_file", "PROFILES", "transform", "transform_stream"]
+__all__ = ["validate", "validate_file", "PROFILES", "transform", "transform_stream", "enrich"]
