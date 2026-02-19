@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-19
+
 ### Added
 
 - Municipal emissions modeling guide for US jurisdictions, including how-to workflows and project starter blueprints for ComStock/ResStock-based disaggregation.
@@ -21,14 +23,20 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 - Municipal reconciliation fields in `energy-timeseries.json`: `billing_period`, `billed_kWh`, `billing_status`, `daa_reference`.
 - Grid capacity and connection status fields in `asset-metadata.json` location: `connection_status`, `allocated_capacity_kw`, `connection_agreement_ref`, `grid_access_queue_date`, `gcar_milestone`.
 - Green attribute and certificate tracking fields in `energy-timeseries.json`: `renewable_attribute_id`, `certificate_standard`, `verification_status`, `carbon_intensity_gCO2_per_kWh`.
+- Runtime validator parity for all SA trading schema fields (SEP-001).
+- SA trading conformance profiles with profile-level validation (SEP-002).
+- Schema Extension Proposal (SEP) issue template.
+- SEP process documentation in `GOVERNANCE.md` and `CONTRIBUTING.md`.
 
 ### Changed
 
-- TBD
+- Schema extended from solar-only to all-utility energy sources.
+- Module renamed from `ods_e` to `odse`.
+- README restructured as router-style index.
 
 ### Fixed
 
-- TBD
+- Long inline payload strings in path resolver.
 
 ## [0.3.0] - 2026-02-10
 
