@@ -2,6 +2,7 @@
 
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/AsobaCloud/odse/actions/workflows/ci.yml/badge.svg)](https://github.com/AsobaCloud/odse/actions/workflows/ci.yml)
 
 ODS-E is an open specification for interoperable energy asset data across generation, consumption, and net metering.
 

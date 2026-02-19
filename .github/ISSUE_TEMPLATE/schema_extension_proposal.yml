@@ -1,0 +1,55 @@
+name: Schema Extension Proposal (SEP)
+description: Propose a new or modified schema field, enum, or structural change to ODS-E.
+title: "[SEP]: "
+labels: ["spec"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One-paragraph description of the proposed extension.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What real-world problem or use case does this address? Reference deployment context if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected schemas or specs
+      description: Which files would change? (e.g. schemas/energy-timeseries.json, spec/market-context.md)
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed fields or changes
+      description: List new fields, enum values, or structural changes with types and descriptions.
+    validations:
+      required: true
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change class
+      description: Per GOVERNANCE.md decision classes.
+      options:
+        - normative
+        - breaking
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Migration requirements, deprecation implications, or effect on existing adopters.
+    validations:
+      required: true
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Reference implementation notes
+      description: Runtime changes needed, validator updates, or enrichment hooks. Optional.
