@@ -80,6 +80,8 @@ def _get_transformer(source: str):
         "sma": SMATransformer(),
         "solis": SolisTransformer(),
         "soliscloud": SolisTransformer(),
+        "csv": GenericCSVTransformer(),
+        "generic": GenericCSVTransformer(),
     }
 
     source_lower = source.lower()
@@ -884,6 +886,109 @@ class SolisTransformer(BaseTransformer):
             out.append(rec)
 
         return out
+
+
+class GenericCSVTransformer(BaseTransformer):
+    """Transform arbitrary CSV data to ODS-E using a column mapping."""
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        mapping = kwargs.get("mapping")
+        if mapping is None:
+            raise ValueError(
+                "Generic CSV transformer requires a 'mapping' argument. "
+                "Provide a dict or path to a YAML/JSON mapping file with keys: "
+                "timestamp, kWh (and optionally kW, error_type, error_code, asset_id)."
+            )
+
+        if isinstance(mapping, (str, Path)):
+            mapping = self._load_mapping_file(mapping)
+
+        if not isinstance(mapping, dict) or "timestamp" not in mapping:
+            raise ValueError(
+                "Mapping must be a dict with at least a 'timestamp' key "
+                "mapping to the CSV column name containing timestamps."
+            )
+
+        rows = self._parse_csv_rows(data)
+        asset_id = kwargs.get("asset_id")
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+        default_error_type = kwargs.get("default_error_type", "normal")
+
+        ts_col = mapping["timestamp"]
+        kwh_col = mapping.get("kWh")
+        kw_col = mapping.get("kW")
+        error_type_col = mapping.get("error_type")
+        error_code_col = mapping.get("error_code")
+        asset_id_col = mapping.get("asset_id")
+        extra_cols = mapping.get("extra", {})
+
+        records: List[Dict[str, Any]] = []
+        for row in rows:
+            timestamp_raw = row.get(ts_col)
+            iso_ts = _to_iso8601(timestamp_raw, timezone=timezone)
+            if not iso_ts:
+                continue
+
+            kwh = _to_float(row.get(kwh_col)) if kwh_col else None
+            kw = _to_float(row.get(kw_col)) if kw_col else None
+
+            if kwh is None and kw is not None:
+                kwh = max(kw * interval_hours, 0.0)
+            elif kwh is None:
+                kwh = 0.0
+
+            error_type = default_error_type
+            if error_type_col and row.get(error_type_col):
+                error_type = str(row[error_type_col]).strip().lower()
+
+            error_code = None
+            if error_code_col and row.get(error_code_col):
+                error_code = row[error_code_col]
+
+            row_asset_id = asset_id
+            if asset_id_col and row.get(asset_id_col):
+                row_asset_id = str(row[asset_id_col])
+
+            rec = _base_record(
+                timestamp=iso_ts,
+                kwh=kwh,
+                error_type=error_type,
+                error_code=error_code,
+                asset_id=row_asset_id,
+            )
+
+            if kw is not None:
+                rec["kW"] = kw
+
+            for odse_field, csv_col in extra_cols.items():
+                val = _to_float(row.get(csv_col))
+                if val is not None:
+                    rec[odse_field] = val
+
+            records.append(rec)
+
+        return records
+
+    def transform_stream(self, data: Union[str, Path], **kwargs) -> Iterator[Dict[str, Any]]:
+        yield from self.transform(data, **kwargs)
+
+    @staticmethod
+    def _load_mapping_file(path: Union[str, Path]) -> dict:
+        file_path = Path(path)
+        text = file_path.read_text(encoding="utf-8")
+
+        if file_path.suffix in (".yaml", ".yml"):
+            try:
+                import yaml
+            except ImportError:
+                raise ImportError(
+                    "PyYAML is required to load YAML mapping files. "
+                    "Install it with: pip install pyyaml"
+                )
+            return yaml.safe_load(text)
+
+        return json.loads(text)
 
 
 def _resolve_existing_path(data: Union[str, Path]) -> Optional[Path]:
