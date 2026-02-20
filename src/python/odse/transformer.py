@@ -33,6 +33,7 @@ def transform(
         List of ODS-E formatted records
     """
     transformer = _get_transformer(source)
+    kwargs["_source"] = source.lower()
     return transformer.transform(
         data,
         asset_id=asset_id,
@@ -81,6 +82,7 @@ def _get_transformer(source: str):
         "solis": SolisTransformer(),
         "soliscloud": SolisTransformer(),
         "csv": GenericCSVTransformer(),
+        "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
     }
 
@@ -892,7 +894,9 @@ class GenericCSVTransformer(BaseTransformer):
     """Transform arbitrary CSV data to ODS-E using a column mapping."""
 
     def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
-        mapping = kwargs.get("mapping")
+        mapping = kwargs.get("column_map", kwargs.get("mapping"))
+        source_name = str(kwargs.get("_source", "")).lower()
+        strict_generic = source_name == "generic_csv"
         if mapping is None:
             raise ValueError(
                 "Generic CSV transformer requires a 'mapping' argument. "
@@ -903,10 +907,16 @@ class GenericCSVTransformer(BaseTransformer):
         if isinstance(mapping, (str, Path)):
             mapping = self._load_mapping_file(mapping)
 
-        if not isinstance(mapping, dict) or "timestamp" not in mapping:
+        if not isinstance(mapping, dict):
+            raise ValueError("Mapping must be a dict.")
+
+        if "timestamp" not in mapping:
             raise ValueError(
-                "Mapping must be a dict with at least a 'timestamp' key "
-                "mapping to the CSV column name containing timestamps."
+                "Mapping must include 'timestamp' mapped to the CSV timestamp column."
+            )
+        if strict_generic and "kWh" not in mapping:
+            raise ValueError(
+                "Mapping must include 'kWh' for source='generic_csv'."
             )
 
         rows = self._parse_csv_rows(data)
@@ -923,15 +933,51 @@ class GenericCSVTransformer(BaseTransformer):
         asset_id_col = mapping.get("asset_id")
         extra_cols = mapping.get("extra", {})
 
-        records: List[Dict[str, Any]] = []
+        parsed_rows: List[Dict[str, Any]] = []
         for row in rows:
             timestamp_raw = row.get(ts_col)
             iso_ts = _to_iso8601(timestamp_raw, timezone=timezone)
             if not iso_ts:
                 continue
+            parsed_rows.append(
+                {
+                    "row": row,
+                    "timestamp": iso_ts,
+                    "kwh_raw": _to_float(row.get(kwh_col)) if kwh_col else None,
+                    "kw": _to_float(row.get(kw_col)) if kw_col else None,
+                }
+            )
 
-            kwh = _to_float(row.get(kwh_col)) if kwh_col else None
-            kw = _to_float(row.get(kw_col)) if kw_col else None
+        # For generic_csv, monotonic kWh is treated as cumulative and converted to interval deltas.
+        if strict_generic and kwh_col:
+            valid_kwh = [r["kwh_raw"] for r in parsed_rows if r["kwh_raw"] is not None]
+            is_cumulative = len(valid_kwh) >= 2 and all(
+                valid_kwh[i] >= valid_kwh[i - 1] for i in range(1, len(valid_kwh))
+            )
+            if is_cumulative:
+                prev = None
+                for item in parsed_rows:
+                    current = item["kwh_raw"]
+                    if current is None:
+                        continue
+                    if prev is None:
+                        item["kwh"] = 0.0
+                    else:
+                        item["kwh"] = max(current - prev, 0.0)
+                    prev = current
+            else:
+                for item in parsed_rows:
+                    item["kwh"] = item["kwh_raw"]
+        else:
+            for item in parsed_rows:
+                item["kwh"] = item["kwh_raw"]
+
+        records: List[Dict[str, Any]] = []
+        for item in parsed_rows:
+            row = item["row"]
+            iso_ts = item["timestamp"]
+            kwh = item["kwh"]
+            kw = item["kw"]
 
             if kwh is None and kw is not None:
                 kwh = max(kw * interval_hours, 0.0)
@@ -1052,6 +1098,17 @@ def _to_iso8601(value: Any, timezone: Optional[str] = None) -> Optional[str]:
     text = str(value).strip()
     if not text:
         return None
+
+    if text.replace(".", "", 1).isdigit():
+        try:
+            return (
+                datetime.fromtimestamp(float(text), dt_timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+        except (TypeError, ValueError, OSError):
+            return None
 
     iso_candidate = text.replace("Z", "+00:00")
     try:

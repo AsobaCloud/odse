@@ -125,10 +125,8 @@ def _cmd_transform(args):
 
     kwargs: Dict[str, Any] = {}
     source = args.source
-    if source == "generic_csv":
-        source = "csv"
     if args.column_map:
-        kwargs["mapping"] = _parse_column_map(args.column_map)
+        kwargs["column_map"] = _parse_column_map(args.column_map)
     if args.asset_id:
         kwargs["asset_id"] = args.asset_id
     if args.timezone:

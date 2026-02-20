@@ -126,6 +126,55 @@ class GenericCSVTransformerTests(unittest.TestCase):
         rows = transform(csv_data, source="generic", mapping=mapping)
         self.assertEqual(len(rows), 1)
 
+    def test_generic_csv_source_with_column_map_argument(self):
+        csv_data = (
+            "Timestamp,Active_Power_kWh\n"
+            "2026-02-09 12:00:00,5.0\n"
+        )
+        column_map = {"timestamp": "Timestamp", "kWh": "Active_Power_kWh"}
+        rows = transform(csv_data, source="generic_csv", column_map=column_map)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["kWh"], 5.0)
+
+    def test_generic_csv_missing_kwh_mapping_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            transform(
+                "Timestamp,Power\n2026-02-09 12:00:00,10.0\n",
+                source="generic_csv",
+                column_map={"timestamp": "Timestamp"},
+            )
+        self.assertIn("kWh", str(ctx.exception))
+
+    def test_generic_csv_unix_epoch_timestamp(self):
+        csv_data = (
+            "ts,energy\n"
+            "1739102400,5.0\n"
+        )
+        rows = transform(
+            csv_data,
+            source="generic_csv",
+            column_map={"timestamp": "ts", "kWh": "energy"},
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertRegex(rows[0]["timestamp"], r"^\d{4}-\d{2}-\d{2}T")
+
+    def test_generic_csv_cumulative_kwh_to_interval_delta(self):
+        csv_data = (
+            "ts,energy_kwh\n"
+            "2026-02-09 12:00:00,100.0\n"
+            "2026-02-09 12:05:00,100.6\n"
+            "2026-02-09 12:10:00,101.1\n"
+        )
+        rows = transform(
+            csv_data,
+            source="generic_csv",
+            column_map={"timestamp": "ts", "kWh": "energy_kwh"},
+        )
+        self.assertEqual(len(rows), 3)
+        self.assertAlmostEqual(rows[0]["kWh"], 0.0)
+        self.assertAlmostEqual(rows[1]["kWh"], 0.6)
+        self.assertAlmostEqual(rows[2]["kWh"], 0.5)
+
     def test_json_mapping_file(self):
         csv_data = (
             "ts,kwh\n"
