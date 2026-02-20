@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from . import __version__
+from . import io as odse_io
 from .transformer import transform
 from .validator import validate
 
@@ -151,28 +152,23 @@ def _cmd_transform(args):
         return
 
     if args.format == "csv":
-        output_text = _to_csv(records)
         if args.output:
-            Path(args.output).write_text(output_text, encoding="utf-8")
+            odse_io.to_csv(records, args.output)
             print(f"Wrote {len(records)} records to {args.output}", file=sys.stderr)
         else:
-            print(output_text, end="")
+            print(_records_to_csv_text(records), end="")
         return
 
     if args.format == "parquet":
-        try:
-            from . import output as out_mod
-        except ImportError:
-            print(
-                "Error: parquet output is not available yet (depends on SEP-016).",
-                file=sys.stderr,
-            )
-            sys.exit(1)
         output_path = args.output
         if not output_path:
             print("Error: --output is required for parquet format", file=sys.stderr)
             sys.exit(1)
-        out_mod.to_parquet(records, output_path)
+        try:
+            odse_io.to_parquet(records, output_path)
+        except ImportError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         print(f"Wrote {len(records)} records to {output_path}", file=sys.stderr)
         return
 
@@ -258,7 +254,7 @@ def _parse_column_map(spec: str) -> Dict[str, str]:
     return mapping
 
 
-def _to_csv(records: List[Dict[str, Any]]) -> str:
+def _records_to_csv_text(records: List[Dict[str, Any]]) -> str:
     if not records:
         return ""
     fieldnames = sorted({key for rec in records for key in rec.keys()})
@@ -267,6 +263,8 @@ def _to_csv(records: List[Dict[str, Any]]) -> str:
     writer.writeheader()
     writer.writerows(records)
     return stream.getvalue()
+
+
 
 
 if __name__ == "__main__":
