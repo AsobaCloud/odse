@@ -8,7 +8,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 
 @dataclass
@@ -26,6 +26,16 @@ class ValidationResult:
     errors: List[ValidationError]
     warnings: List[ValidationError]
     level: str = "schema"
+
+
+@dataclass
+class BatchValidationResult:
+    """Aggregated validation result for a batch of records."""
+    total: int
+    valid: int
+    invalid: int
+    errors: List[Tuple[int, ValidationError]]
+    summary: str
 
 
 PROFILES = {
@@ -147,6 +157,56 @@ def validate_file(
         ValidationResult
     """
     return validate(Path(file_path), level=level, **kwargs)
+
+
+def validate_batch(
+    records: List[dict],
+    level: str = "schema",
+    profile: Optional[str] = None,
+    **kwargs,
+) -> BatchValidationResult:
+    """
+    Validate a list of records and return aggregate validation results.
+
+    Args:
+        records: List of ODS-E records
+        level: Validation level
+        profile: Optional conformance profile
+        **kwargs: Additional arguments passed to validate()
+
+    Returns:
+        BatchValidationResult
+    """
+    indexed_errors: List[Tuple[int, ValidationError]] = []
+    error_counts = {}
+    total = len(records)
+    valid = 0
+
+    for idx, record in enumerate(records):
+        result = validate(record, level=level, profile=profile, **kwargs)
+        if result.is_valid:
+            valid += 1
+            continue
+        for err in result.errors:
+            indexed_errors.append((idx, err))
+            error_counts[err.code] = error_counts.get(err.code, 0) + 1
+
+    invalid = total - valid
+    if invalid == 0:
+        summary = f"{valid}/{total} valid, 0 errors"
+    else:
+        breakdown = ", ".join(
+            f"{count}x {code}" for code, count in sorted(error_counts.items())
+        )
+        summary = f"{valid}/{total} valid, {len(indexed_errors)} errors: {breakdown}"
+
+    return BatchValidationResult(
+        total=total,
+        valid=valid,
+        invalid=invalid,
+        errors=indexed_errors,
+        summary=summary,
+    )
 
 
 def _check_optional_type(
