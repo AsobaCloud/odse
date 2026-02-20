@@ -23,10 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
 ]
-dependencies = [
-    "jsonschema>=4.0.0",
-    "pyyaml>=6.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
