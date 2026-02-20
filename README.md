@@ -11,6 +11,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Documentation Site](https://opendataschema.energy/docs/)
 - [Documentation Source Repo](https://github.com/AsobaCloud/odse-docs/)
 - [Launch Kit](spec/launch-kit.md)
+- [60-second quickstart](spec/get-started.md)
 
 ## Repository Map
 
