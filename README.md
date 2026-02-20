@@ -33,6 +33,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Market reform extensions (wheeling, curtailment, BRP, certificates)](spec/market-reform-extensions.md)
 - [SA trading conformance profiles (SEP-002)](spec/conformance-profiles.md)
 - [Reference enrichment contract (SEP-003)](spec/market-context.md)
+- [Python SDK examples](examples/README.md)
 
 ## Project
 

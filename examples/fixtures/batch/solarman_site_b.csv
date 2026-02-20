@@ -1,0 +1,4 @@
+Update Time,Generation(kWh),Device State,Power(W)
+2026-02-09 12:00:00,120.0,Operating,600
+2026-02-09 12:05:00,120.6,Operating,650
+2026-02-09 12:10:00,120.6,Standby,0
