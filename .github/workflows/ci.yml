@@ -22,6 +22,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e src/python
 
+      - name: CLI smoke test
+        run: |
+          odse --help
+          odse version
+
       - name: Run unit tests
         run: PYTHONPATH=src/python python3 -m unittest discover -s src/python/tests -v
 
