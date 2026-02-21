@@ -1,0 +1,14 @@
+# ODS-E column mapping for generic_historian_7d.csv
+#
+# Maps non-standard SCADA historian columns to ODS-E field names.
+# Use with: odse transform --source csv --mapping generic_mapping.yaml generic_historian_7d.csv
+# Or in Python: transform(data, source="csv", mapping="examples/data/generic_mapping.yaml")
+
+timestamp: Timestamp
+kWh: ActiveEnergy_kWh
+asset_id: SiteTag
+error_type: InvStatus
+
+# Map additional columns to ODS-E optional fields
+extra:
+  kVAr: ReactivePower_kVAr
