@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/equipment-register.json",
+  "title": "ODS-E Equipment Register",
+  "description": "Equipment hierarchy and technical attributes for a single piece of site equipment, sourced from ERP/EAM systems",
+  "type": "object",
+  "required": ["equipment_id", "site_id", "equipment_type"],
+  "properties": {
+    "equipment_id": {
+      "type": "string",
+      "description": "Canonical ODS-E equipment identifier"
+    },
+    "site_id": {
+      "type": "string",
+      "description": "Identifier of the site where this equipment is installed"
+    },
+    "equipment_type": {
+      "type": "string",
+      "enum": [
+        "site", "array", "inverter", "combiner", "string",
+        "module", "transformer", "tracker", "meter"
+      ],
+      "description": "Standardized equipment type within the site hierarchy"
+    },
+    "equipment_subtype": {
+      "type": "string",
+      "description": "Vendor-specific equipment subtype for additional detail"
+    },
+    "parent_equipment_id": {
+      "type": "string",
+      "description": "Canonical equipment ID of the parent in the hierarchy (for cascade risk traversal)"
+    },
+    "source_equipment_id": {
+      "type": "string",
+      "description": "Native equipment identifier in the originating ERP or SCADA system"
+    },
+    "manufacturer": {
+      "type": "string",
+      "description": "Equipment manufacturer name"
+    },
+    "model": {
+      "type": "string",
+      "description": "Equipment model identifier"
+    },
+    "serial_number": {
+      "type": "string",
+      "description": "Manufacturer serial number"
+    },
+    "install_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the equipment was installed (ISO 8601 date)"
+    },
+    "warranty_expiry": {
+      "type": "string",
+      "format": "date",
+      "description": "Warranty expiration date (ISO 8601 date)"
+    },
+    "design_capacity_kw": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Design or nameplate capacity in kilowatts"
+    },
+    "cost_center": {
+      "type": "string",
+      "description": "Cost center or financial reporting unit associated with this equipment"
+    }
+  },
+  "additionalProperties": false
+}

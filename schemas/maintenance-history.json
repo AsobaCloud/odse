@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/maintenance-history.json",
+  "title": "ODS-E Maintenance History",
+  "description": "Work order record capturing corrective, preventive, or condition-based maintenance activity on a piece of equipment",
+  "type": "object",
+  "required": ["equipment_id", "work_order_id", "wo_type", "wo_status", "reported_date"],
+  "properties": {
+    "equipment_id": {
+      "type": "string",
+      "description": "Canonical ODS-E equipment identifier"
+    },
+    "work_order_id": {
+      "type": "string",
+      "description": "Unique work order identifier from the source ERP/EAM system"
+    },
+    "wo_type": {
+      "type": "string",
+      "enum": ["corrective", "preventive", "condition_based"],
+      "description": "Work order type classification"
+    },
+    "wo_status": {
+      "type": "string",
+      "enum": ["open", "in_progress", "closed"],
+      "description": "Current work order lifecycle status"
+    },
+    "reported_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time the work order was reported (ISO 8601)"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time the work order was completed (ISO 8601)"
+    },
+    "source_equipment_id": {
+      "type": "string",
+      "description": "Native equipment identifier in the originating ERP or SCADA system"
+    },
+    "downtime_hours": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total equipment downtime attributed to this work order in hours"
+    },
+    "failure_code": {
+      "type": "string",
+      "description": "Failure code from the ERP failure taxonomy"
+    },
+    "cause_code": {
+      "type": "string",
+      "description": "Root cause code from the ERP failure taxonomy"
+    },
+    "total_cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total cost of the work order including labor, parts, and services"
+    },
+    "parts_consumed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["part_id", "qty"],
+        "properties": {
+          "part_id": {
+            "type": "string",
+            "description": "Spare part identifier consumed in this work order"
+          },
+          "qty": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Quantity of this part consumed"
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "List of spare parts consumed during this maintenance activity"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/equipment-id-map.json",
+  "title": "ODS-E Equipment ID Map",
+  "description": "Lookup table mapping a canonical equipment identifier to its native identifiers across ERP, SCADA, and monitoring systems",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["equipment_id", "sources"],
+    "properties": {
+      "equipment_id": {
+        "type": "string",
+        "description": "Canonical ODS-E equipment identifier used across all enrichment schemas"
+      },
+      "sources": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["system", "type", "native_id"],
+          "properties": {
+            "system": {
+              "type": "string",
+              "description": "Source system name (e.g., ifs-cloud, sma-monitoring, soliscloud)"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["erp", "scada", "monitoring"],
+              "description": "Category of the source system"
+            },
+            "native_id": {
+              "type": "string",
+              "description": "Identifier of this equipment in the source system"
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "List of source system identifiers for this equipment"
+      }
+    },
+    "additionalProperties": false
+  }
+}

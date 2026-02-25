@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/procurement-context.json",
+  "title": "ODS-E Procurement Context",
+  "description": "Procurement and supply chain context for a spare part, including preferred supplier, lead times, and open purchase orders",
+  "type": "object",
+  "required": ["part_id"],
+  "properties": {
+    "part_id": {
+      "type": "string",
+      "description": "Spare part identifier matching the spare-parts schema"
+    },
+    "preferred_supplier": {
+      "type": "string",
+      "description": "Name or identifier of the preferred supplier for this part"
+    },
+    "avg_lead_time_days": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Average supplier lead time in calendar days across recent orders"
+    },
+    "avg_unit_cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Average unit cost across recent purchase orders"
+    },
+    "last_po_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the most recent purchase order for this part (ISO 8601 date)"
+    },
+    "open_po_qty": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total quantity on open (undelivered) purchase orders"
+    },
+    "open_po_eta": {
+      "type": "string",
+      "format": "date",
+      "description": "Expected delivery date of the earliest open purchase order (ISO 8601 date)"
+    }
+  },
+  "additionalProperties": false
+}

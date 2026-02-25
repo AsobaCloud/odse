@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/failure-taxonomy.json",
+  "title": "ODS-E Failure Taxonomy",
+  "description": "Failure and root cause classification record from the ERP/EAM failure coding system, including historical repair statistics",
+  "type": "object",
+  "required": ["failure_code", "failure_description"],
+  "properties": {
+    "failure_code": {
+      "type": "string",
+      "description": "Failure code identifier from the ERP failure taxonomy"
+    },
+    "failure_description": {
+      "type": "string",
+      "description": "Human-readable description of the failure mode"
+    },
+    "cause_code": {
+      "type": "string",
+      "description": "Root cause code associated with this failure"
+    },
+    "cause_description": {
+      "type": "string",
+      "description": "Human-readable description of the root cause"
+    },
+    "recurrence_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Historical probability of recurrence (0 to 1)"
+    },
+    "typical_mttr_hours": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Typical mean time to repair in hours for this failure mode"
+    },
+    "typical_cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Typical repair cost for this failure mode"
+    }
+  },
+  "additionalProperties": false
+}

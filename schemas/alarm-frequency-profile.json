@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/alarm-frequency-profile.json",
+  "title": "ODS-E Alarm Frequency Profile",
+  "description": "Derived alarm frequency analytics for a specific equipment-alarm pair, computed from SCADA alarm logs and enriched with maintenance context",
+  "type": "object",
+  "required": ["equipment_id", "alarm_code"],
+  "properties": {
+    "equipment_id": {
+      "type": "string",
+      "description": "Canonical ODS-E equipment identifier"
+    },
+    "alarm_code": {
+      "type": "string",
+      "description": "SCADA or monitoring system alarm code"
+    },
+    "source_equipment_id": {
+      "type": "string",
+      "description": "Native equipment identifier in the originating SCADA or monitoring system"
+    },
+    "count_7d": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of alarm occurrences in the trailing 7-day window"
+    },
+    "count_30d": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of alarm occurrences in the trailing 30-day window"
+    },
+    "count_90d": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of alarm occurrences in the trailing 90-day window"
+    },
+    "mean_time_between_alarms_hours": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Average time between consecutive occurrences of this alarm in hours"
+    },
+    "escalation_rate": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Ratio of count_7d normalized to weekly rate vs count_30d normalized to weekly rate. Values greater than 1.0 indicate accelerating alarm frequency."
+    },
+    "prior_wo_count_same_alarm": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of historical work orders linked to this alarm code on this equipment"
+    },
+    "prior_resolution": {
+      "type": "string",
+      "enum": ["closed_resolved", "closed_deferred", "recurring", "none"],
+      "description": "Resolution status of the most recent work order for this alarm on this equipment"
+    }
+  },
+  "additionalProperties": false
+}

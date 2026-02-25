@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/spare-parts.json",
+  "title": "ODS-E Spare Parts",
+  "description": "Spare part inventory record including stock levels, reorder thresholds, and equipment applicability",
+  "type": "object",
+  "required": ["part_id", "qty_on_hand"],
+  "properties": {
+    "part_id": {
+      "type": "string",
+      "description": "Unique spare part identifier from the ERP/EAM inventory system"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable part description"
+    },
+    "equipment_types_served": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of equipment types this part is applicable to"
+    },
+    "qty_on_hand": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Current physical stock quantity"
+    },
+    "qty_reserved": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Quantity reserved for open work orders"
+    },
+    "qty_available": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Quantity available for new work orders (on_hand minus reserved)"
+    },
+    "reorder_point": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Stock level at which a purchase requisition should be triggered"
+    },
+    "supplier_lead_time_days": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Typical supplier lead time in calendar days"
+    },
+    "last_unit_cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Unit cost from the most recent purchase order"
+    }
+  },
+  "additionalProperties": false
+}
