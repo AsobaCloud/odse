@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2026-02-09T12:00:00Z",
+    "kWh": 0.0,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:05:00Z",
+    "kWh": 0.5999999999999943,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:10:00Z",
+    "kWh": 0.5,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:15:00Z",
+    "kWh": 0.6000000000000085,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:20:00Z",
+    "kWh": 0.5,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:25:00Z",
+    "kWh": 0.5999999999999943,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:30:00Z",
+    "kWh": 0.5,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:35:00Z",
+    "kWh": 0.6000000000000085,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:40:00Z",
+    "kWh": 0.5,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  },
+  {
+    "timestamp": "2026-02-09T12:45:00Z",
+    "kWh": 0.5999999999999943,
+    "error_type": "normal",
+    "asset_id": "SITE-QS-001"
+  }
+]

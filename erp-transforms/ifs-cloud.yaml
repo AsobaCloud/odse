@@ -1,0 +1,230 @@
+# IFS Cloud OData to ODS-E ERP Enrichment Transform Specification
+# License: CC-BY-SA 4.0
+# Sources:
+# - IFS Cloud OData API documentation
+# - IFS Cloud standard projection reference
+
+transform:
+  name: ifs-cloud
+  version: "1.0"
+  vendor: IFS
+  description: Transform IFS Cloud OData projections to ODS-E ERP enrichment schemas
+
+input_schema:
+  format: json
+  api_type: odata_v4
+  api_base: "https://{tenant}.ifs.cloud/main/ifsapplications/projection/v1/"
+  authentication:
+    type: oauth2
+    grant_type: client_credentials
+    provider: keycloak
+    token_endpoint: "https://{tenant}.ifs.cloud/auth/realms/{realm}/protocol/openid-connect/token"
+    notes: Client credentials issued by IFS Cloud tenant administrator via Keycloak.
+  pagination:
+    style: odata
+    parameters: ["$skip", "$top"]
+    notes: Server-side paging with OData $skip/$top. Default page size is 1000.
+
+equipment_id_resolution:
+  description: >
+    Maps IFS equipment object IDs to canonical ODS-E equipment IDs using
+    the equipment-id-map.json lookup table.
+  target_schema: equipment-id-map.json
+  lookup_key:
+    system: ifs-cloud
+    type: erp
+
+extractions:
+  equipment_register:
+    target_schema: equipment-register.json
+    source_projection: EquipmentObjectHandling.svc/EquipmentObjectSet
+    refresh_cadence: daily
+    output_mapping:
+      equipment_id:
+        source: equipment_id_resolution
+        description: Resolved via equipment-id-map.json from MchCode
+      site_id:
+        source: input.Contract
+      equipment_type:
+        source: input.MchType
+        transform: map_to_enum
+      equipment_subtype:
+        source: input.TypeDesignation
+      parent_equipment_id:
+        source: equipment_id_resolution
+        input_field: input.SupMchCode
+        description: Resolved via equipment-id-map.json from SupMchCode
+      source_equipment_id:
+        source: input.MchCode
+      manufacturer:
+        source: input.ManufacturerNo
+      model:
+        source: input.PartNo
+      serial_number:
+        source: input.SerialNo
+      install_date:
+        source: input.InstallDate
+        transform: to_iso8601_date
+      warranty_expiry:
+        source: input.WarrantyExpires
+        transform: to_iso8601_date
+      design_capacity_kw:
+        source: input.NominalCapacity
+        transform: vendor_unit_to_kw
+      cost_center:
+        source: input.CostCenter
+    customer_overrides:
+      source_projection: "Tenant-configurable. Override if using a custom projection name."
+
+  maintenance_history:
+    target_schema: maintenance-history.json
+    source_projection: ActiveWorkOrdersHandling.svc/WorkOrderSet
+    refresh_cadence: every_4_hours
+    output_mapping:
+      equipment_id:
+        source: equipment_id_resolution
+        input_field: input.MchCode
+      work_order_id:
+        source: input.WoNo
+      wo_type:
+        source: input.WorkType
+        transform: map_to_enum
+        mapping:
+          Corrective: corrective
+          Preventive: preventive
+          ConditionBased: condition_based
+      wo_status:
+        source: input.ObjState
+        transform: map_to_enum
+        mapping:
+          Released: open
+          Started: in_progress
+          WorkDone: in_progress
+          Reported: closed
+          Finished: closed
+      reported_date:
+        source: input.ReportedDate
+        transform: to_iso8601_datetime
+      completed_date:
+        source: input.FinishedDate
+        transform: to_iso8601_datetime
+      source_equipment_id:
+        source: input.MchCode
+      downtime_hours:
+        source: input.DowntimeHours
+      failure_code:
+        source: input.ErrSymptom
+      cause_code:
+        source: input.ErrCause
+      total_cost:
+        source: input.TotalCost
+      parts_consumed:
+        source: input.MaterialLines
+        transform: map_array
+        item_mapping:
+          part_id: input.PartNo
+          qty: input.QtyIssued
+    customer_overrides:
+      source_projection: "Tenant-configurable. Override if using a custom projection name."
+
+  spare_parts:
+    target_schema: spare-parts.json
+    source_projection: InventoryPartInStockHandling.svc/InventoryPartInStockSet
+    refresh_cadence: every_2_hours
+    output_mapping:
+      part_id:
+        source: input.PartNo
+      description:
+        source: input.Description
+      qty_on_hand:
+        source: input.QtyOnHand
+      qty_reserved:
+        source: input.QtyReserved
+      qty_available:
+        source: input.QtyAvailable
+      reorder_point:
+        source: input.OrderPoint
+      supplier_lead_time_days:
+        source: input.LeadTimeDays
+      last_unit_cost:
+        source: input.LastPurchasePrice
+    customer_overrides:
+      source_projection: "Tenant-configurable. Override if using a custom projection name."
+
+  procurement_context:
+    target_schema: procurement-context.json
+    source_projection: PurchaseOrderHandling.svc/PurchaseOrderLineSet
+    refresh_cadence: daily
+    output_mapping:
+      part_id:
+        source: input.PartNo
+      preferred_supplier:
+        source: input.VendorNo
+        transform: resolve_supplier_name
+      avg_lead_time_days:
+        source: derived
+        description: Computed from historical PO receipt dates minus order dates
+      avg_unit_cost:
+        source: derived
+        description: Computed as rolling average of BuyUnitPrice across recent POs
+      last_po_date:
+        source: input.OrderDate
+        transform: to_iso8601_date
+      open_po_qty:
+        source: input.BuyQtyDue
+        filter: "ObjState in ('Released', 'Confirmed', 'Arrived')"
+      open_po_eta:
+        source: input.PlannedDeliveryDate
+        transform: to_iso8601_date
+        filter: "ObjState in ('Released', 'Confirmed')"
+    customer_overrides:
+      source_projection: "Tenant-configurable. Override if using a custom projection name."
+
+  failure_taxonomy:
+    target_schema: failure-taxonomy.json
+    source_projection: FailureCodeHandling.svc/FailureCodeSet
+    refresh_cadence: weekly
+    output_mapping:
+      failure_code:
+        source: input.ErrSymptom
+      failure_description:
+        source: input.ErrSymptomDesc
+      cause_code:
+        source: input.ErrCause
+      cause_description:
+        source: input.ErrCauseDesc
+      recurrence_rate:
+        source: derived
+        description: Computed from historical work order recurrence for this failure code
+      typical_mttr_hours:
+        source: derived
+        description: Computed as average repair time from closed work orders with this failure code
+      typical_cost:
+        source: derived
+        description: Computed as average total cost from closed work orders with this failure code
+    customer_overrides:
+      source_projection: "Tenant-configurable. Override if using a custom projection name."
+
+validation:
+  per_extraction: true
+  rules:
+    - Each extraction output must validate against its target_schema
+    - equipment_id fields must resolve via equipment-id-map.json
+    - Enum fields must map to valid ODS-E enum values or be flagged
+
+notes: |
+  IFS Cloud OData projection names are tenant-configurable. The source_projection
+  values above reflect IFS Cloud standard defaults. Each extraction includes a
+  customer_overrides section to substitute tenant-specific projection names.
+
+  Alarm frequency profile is NOT extracted from IFS — it is a derived computation
+  that combines SCADA alarm logs with ERP maintenance history. See
+  spec/alarm-frequency-computation.md for the computation specification.
+
+  IFS field names (MchCode, WoNo, ErrSymptom, etc.) are based on standard IFS Cloud
+  documentation. Actual field availability depends on the tenant's IFS configuration
+  and licensed modules.
+
+  equipment_types_served in spare-parts.json is not directly available from IFS
+  inventory projections — it requires a join with the equipment-to-part linkage
+  in IFS (typically via EquipmentSparePart or BOM structures).

@@ -1,0 +1,6 @@
+{"timestamp":"2026-02-09T12:00:00Z","kWh":0.8333333333333333,"error_type":"normal","error_code":"512","asset_id":"HUAWEI-SITE-A"}
+{"timestamp":"2026-02-09T12:05:00Z","kWh":0.6666666666666666,"error_type":"normal","error_code":"512","asset_id":"HUAWEI-SITE-A"}
+{"timestamp":"2026-02-09T12:10:00Z","kWh":0.0,"error_type":"offline","error_code":"512","asset_id":"HUAWEI-SITE-A"}
+{"timestamp":"2026-02-09T12:00:00Z","kWh":0.0,"error_type":"normal","error_code":"Operating","kW":0.6,"asset_id":"SOLARMAN-SITE-B"}
+{"timestamp":"2026-02-09T12:05:00Z","kWh":0.5999999999999943,"error_type":"normal","error_code":"Operating","kW":0.65,"asset_id":"SOLARMAN-SITE-B"}
+{"timestamp":"2026-02-09T12:10:00Z","kWh":0.0,"error_type":"standby","error_code":"Standby","kW":0.0,"asset_id":"SOLARMAN-SITE-B"}
