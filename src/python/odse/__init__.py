@@ -17,6 +17,7 @@ from .validator import (
 from .transformer import transform, transform_stream
 from .enrichment import enrich
 from .io import to_csv, to_dataframe, to_json, to_parquet
+from .regulatory import REGULATORY_EVENT_SCHEMA_VERSION, normalize_regulatory_events
 
 __all__ = [
     "validate",
@@ -27,6 +28,8 @@ __all__ = [
     "transform",
     "transform_stream",
     "enrich",
+    "REGULATORY_EVENT_SCHEMA_VERSION",
+    "normalize_regulatory_events",
     "to_json",
     "to_csv",
     "to_parquet",
