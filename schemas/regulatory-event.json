@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ona-protocol.org/schemas/v1/regulatory-event.json",
+  "title": "ODS-E Regulatory Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jurisdiction",
+    "regulator",
+    "event_type",
+    "title",
+    "published_date",
+    "source_url",
+    "source_system",
+    "source_record_id",
+    "schema_version",
+    "transform_version"
+  ],
+  "properties": {
+    "jurisdiction": {
+      "type": "string",
+      "enum": ["US", "ZA", "ZW"]
+    },
+    "regulator": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": ["string", "null"]
+    },
+    "effective_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "deadline_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "source_system": {
+      "type": "string"
+    },
+    "source_record_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "regulatory-event.v1"
+    },
+    "transform_version": {
+      "type": "string"
+    }
+  }
+}
