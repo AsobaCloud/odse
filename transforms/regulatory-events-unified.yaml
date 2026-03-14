@@ -1,0 +1,95 @@
+# Unified ZA/ZW/US regulatory event normalization
+# License: CC-BY-SA 4.0
+
+transform:
+  name: regulatory-events-unified
+  version: "1.0"
+  description: Normalize regulatory notices, decisions, and procurement updates to the shared regulatory-event contract.
+
+input_schema:
+  format: json
+  record_types:
+    - us_manual
+    - nersa
+    - ippo
+    - zera_seed
+
+output_schema: schemas/regulatory-event.json
+
+source_mappings:
+  us_manual:
+    jurisdiction: US
+    regulator:
+      source: regulator
+      default: US Regulator
+    title:
+      source: title
+    published_date:
+      source: published_date
+      transform: parse_date
+    source_url:
+      source: source_url
+    source_record_id:
+      source: source_record_id
+      transform: slugify_if_missing
+    event_type:
+      function: classify_event_type
+      default: rulemaking
+    transform_version: us_manual.v1
+
+  nersa:
+    jurisdiction: ZA
+    regulator: NERSA
+    title:
+      source: title
+    published_date:
+      source: published_date
+      transform: parse_date
+    source_url:
+      source: href
+      transform: urljoin
+      base_url: https://www.nersa.org.za/
+    source_record_id:
+      source: href
+      transform: basename
+    event_type:
+      function: classify_event_type
+      default: announcement
+    transform_version: nersa.v1
+
+  ippo:
+    jurisdiction: ZA
+    regulator: IPP Office
+    title:
+      source: headline
+    published_date:
+      source: date
+      transform: parse_date
+    source_url:
+      source: noteid
+      transform: template
+      template: https://www.ipp-projects.co.za/_entity/annotation/{noteid}
+    source_record_id:
+      source: id
+    event_type:
+      function: classify_event_type
+      default: announcement
+    transform_version: ippo.v1
+
+  zera_seed:
+    jurisdiction: ZW
+    regulator: ZERA
+    title:
+      source: title
+    published_date:
+      source: published_date
+      transform: parse_date
+    source_url:
+      source: source_url
+    source_record_id:
+      source: source_record_id
+      transform: slugify_if_missing
+    event_type:
+      function: classify_event_type
+      default: public_notice
+    transform_version: zera_seed.v1
