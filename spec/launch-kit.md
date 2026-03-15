@@ -62,6 +62,7 @@ Publish this matrix in docs and outreach posts.
 | Solis | Yes | Yes | Partner-gated | SolisCloud onboarding |
 | SolaX | Yes | Yes | Account-required | SolaX tokenId |
 | Solarman | Yes | Yes | Account/file feed | Logger exports/API |
+| Higeco | Yes | Yes | Partner-gated | Higeco docAPI bearer token |
 
 ### Consumption & Net Metering Sources (Schema Ready)
 

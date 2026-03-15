@@ -6,6 +6,9 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+### Added
+- Higeco OEM transform spec, runtime transformer, and harness fixture (Phase 4 of platform SEP-019).
+
 ## [0.4.0] - 2026-02-19
 
 ### Added
