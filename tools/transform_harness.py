@@ -30,6 +30,7 @@ CANONICAL_OEMS = [
     "fimer",
     "solis",
     "solaxcloud",
+    "higeco",
 ]
 
 FIXTURES: Dict[str, str] = {
@@ -96,6 +97,20 @@ FIXTURES: Dict[str, str] = {
                     "inverter_status": "running",
                     "status_code": "200",
                     "temperature_c": 41.2,
+                }
+            }
+        ]
+    }),
+    "higeco": json.dumps({
+        "records": [
+            {
+                "normalized": {
+                    "timestamp": "2026-03-15T10:00:00Z",
+                    "active_power_w": 5200,
+                    "active_energy_wh": 1300,
+                    "temperature_c": 38.5,
+                    "connectionStatus": "CONNECTED",
+                    "powerStatus": "ON",
                 }
             }
         ]
