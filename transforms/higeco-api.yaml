@@ -1,0 +1,202 @@
+# Higeco docAPI to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: Higeco cloud platform (instance-specific docAPI)
+
+transform:
+  name: higeco-api
+  version: "1.0"
+  oem: Higeco
+  description: Transform Higeco docAPI telemetry data to ODS-E format
+
+input_schema:
+  format: json
+  api_base: "https://{instance}.higeco.com/docapi/"
+  authentication:
+    type: bearer_token
+    flow: |
+      POST /authenticate with {"username": "...", "password": "..."}
+      or {"apiToken": "..."} to obtain bearer token.
+    header: "Authorization: Bearer {token}"
+
+  endpoints:
+    authenticate:
+      path: "/authenticate"
+      method: POST
+      body:
+        username: string
+        password: string
+        # Alternative: apiToken: string
+      response:
+        token: string
+
+    plants:
+      path: "/plants"
+      method: GET
+      response:
+        - id: integer
+          name: string
+          timezone: string
+
+    plant_devices:
+      path: "/plants/{plantId}/devices"
+      method: GET
+      response:
+        - id: integer
+          name: string
+          type: string
+
+    log_items:
+      path: "/devices/{deviceId}/logitems"
+      method: GET
+      description: Lists available log item keys for a device
+      response:
+        - key: string
+          name: string
+          unit: string
+
+    log_data:
+      path: "/devices/{deviceId}/logdata"
+      method: GET
+      params:
+        from: datetime    # ISO 8601
+        to: datetime      # ISO 8601
+        keys: string      # Comma-separated log item keys
+      description: |
+        Returns sampled log data. Maximum 100,000 samples per request.
+        Exceeding this cap silently truncates results.
+      response:
+        data:
+          - timestamp: datetime
+            values:
+              "{key}": float
+
+    last_value:
+      path: "/devices/{deviceId}/lastvalue"
+      method: GET
+      params:
+        keys: string
+      response:
+        data:
+          - key: string
+            value: float
+            timestamp: datetime
+
+    node_log_data:
+      path: "/nodes/{nodeId}/logdata"
+      method: GET
+      params:
+        from: datetime
+        to: datetime
+        keys: string
+        granularity: string  # 5min, 15min, 1h, 1d
+      description: Aggregated log data at specified granularity
+      response:
+        data:
+          - timestamp: datetime
+            values:
+              "{key}": float
+
+output_mapping:
+  from_normalized_contract:
+    timestamp:
+      source: input.normalized.timestamp
+      transform: to_iso8601
+      description: ISO 8601 timestamp from log data
+    kWh:
+      source: input.normalized.active_energy_wh
+      transform: divide_by_1000
+      fallback:
+        function: calculate_interval_energy
+        inputs: [input.normalized.active_power_w, interval_hours]
+      description: Energy from Wh reading, or calculated from power * interval
+    kW:
+      source: input.normalized.active_power_w
+      transform: divide_by_1000
+    voltage_dc:
+      source: input.normalized.voltage_dc_v
+      unit: V
+    current_dc:
+      source: input.normalized.current_dc_a
+      unit: A
+    temperature:
+      source: input.normalized.temperature_c
+      unit: C
+    voltage_ac:
+      source: input.normalized.voltage_v
+      unit: V
+    current_ac:
+      source: input.normalized.current_a
+      unit: A
+    frequency:
+      source: input.normalized.frequency_hz
+      unit: Hz
+    error_type:
+      function: resolve_status
+      inputs: [input.normalized.connectionStatus, input.normalized.powerStatus, input.normalized.active_power_w]
+      description: |
+        Priority: connectionStatus → powerStatus → power-value inference → "unknown"
+
+status_mapping:
+  connection_status_to_error_type:
+    CONNECTED: normal
+    DISCONNECTED: offline
+
+  power_status_to_error_type:
+    ON: normal
+    OFF: standby
+    FAULT: fault
+    WARNING: warning
+
+calculations:
+  interval_energy:
+    description: Calculate energy from power reading
+    formula: "(power_w / 1000.0) * interval_hours"
+    default_interval: 0.0833  # 5 minutes = 0.0833 hours
+
+  wh_to_kwh:
+    description: Convert Wh to kWh
+    formula: "value / 1000.0"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    kW:
+      min: 0
+      max_formula: "capacity_kw * 1.1"
+    PF:
+      min: 0
+      max: 1
+    voltage_ac:
+      min: 0
+      max: 500
+    frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["5min", "15min", "1h", "1d"]
+    max_gap: "24h"
+
+api_limits:
+  log_data:
+    max_samples: 100000
+    description: Requests exceeding 100K samples are silently truncated
+  node_log_data:
+    granularities: ["5min", "15min", "1h", "1d"]
+    description: Server-side aggregation at specified granularity
+
+notes: |
+  Higeco docAPI provides SCADA-grade telemetry for inverters and plant-level devices.
+  The API is instance-specific: each deployment runs at {instance}.higeco.com/docapi/.
+
+  Authentication uses POST /authenticate with credentials or an API token.
+  Bearer tokens should be refreshed on 401 responses.
+
+  The log_data endpoint has a hard cap of 100,000 samples per request.
+  For longer time ranges, use node_log_data with aggregation granularity,
+  or split queries into smaller time windows.
+
+  The normalized contract approach is used because actual API response samples
+  are not yet available. A future connector will map raw docAPI responses
+  into the normalized format consumed by HigecoTransformer.

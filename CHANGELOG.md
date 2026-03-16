@@ -6,6 +6,27 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-15
+
+### Added
+- Higeco OEM transform spec, runtime transformer, and harness fixture (SEP-019 Phase 4).
+- Regulatory event normalization contract with unified transform spec and `odse.regulatory` module.
+- ERP enrichment JSON schemas: equipment register, equipment ID map, failure taxonomy, maintenance history, spare parts, procurement context, alarm frequency profile.
+- ERP enrichment starter notebook with SCADA alarm triage workflow and visualizations.
+- IFS Cloud ERP transform spec and alarm frequency computation spec.
+- CLI interface (`odse transform`, `odse validate`) with JSON/CSV/Parquet output formats (SEP-015).
+- Output serialization module (`odse.io`) with `to_json`, `to_csv`, `to_parquet`, `to_dataframe` (SEP-016).
+- Batch validation helper (`odse.validate_batch`) with summary reporting (SEP-018).
+- Generic CSV column-mapping transformer (`source="csv"`) with kW-to-kWh fallback (SEP-020).
+- SDK usage examples and fixture library: basic transform, batch directory, generic CSV, full pipeline (SEP-019).
+- 60-second quickstart guide with sample CSV (SEP-028).
+- Sample data fixtures for tutorials and QA: Huawei 24h, Enphase 24h, SolarEdge 24h, generic historian 7d (SEP-037).
+- Winter Storm Fern analysis notebook and SMA CSV demo.
+- Test scaffold for ERP enrichment schemas (52 tests).
+
+### Fixed
+- Version mismatch: synced `__version__` to 0.4.0 and removed phantom dependencies (SEP-017).
+
 ## [0.4.0] - 2026-02-19
 
 ### Added

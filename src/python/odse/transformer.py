@@ -81,6 +81,7 @@ def _get_transformer(source: str):
         "sma": SMATransformer(),
         "solis": SolisTransformer(),
         "soliscloud": SolisTransformer(),
+        "higeco": HigecoTransformer(),
         "csv": GenericCSVTransformer(),
         "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
@@ -881,6 +882,82 @@ class SolisTransformer(BaseTransformer):
                 ("current_a", "current_ac"),
                 ("frequency_hz", "frequency"),
                 ("temperature_c", "temperature"),
+            ]:
+                val = _to_float(normalized.get(src))
+                if val is not None:
+                    rec[dst] = val
+            out.append(rec)
+
+        return out
+
+
+class HigecoTransformer(BaseTransformer):
+    """Transform normalized Higeco docAPI records to ODS-E."""
+
+    CONNECTION_STATUS_MAPPING = {
+        "CONNECTED": "normal",
+        "DISCONNECTED": "offline",
+    }
+
+    POWER_STATUS_MAPPING = {
+        "ON": "normal",
+        "OFF": "standby",
+        "FAULT": "fault",
+        "WARNING": "warning",
+    }
+
+    def _resolve_error_type(self, normalized: Dict[str, Any], power_w: Optional[float]) -> str:
+        conn = str(normalized.get("connectionStatus") or "").upper()
+        if conn in self.CONNECTION_STATUS_MAPPING:
+            mapped = self.CONNECTION_STATUS_MAPPING[conn]
+            if mapped != "normal":
+                return mapped
+
+        pstat = str(normalized.get("powerStatus") or "").upper()
+        if pstat in self.POWER_STATUS_MAPPING:
+            return self.POWER_STATUS_MAPPING[pstat]
+
+        if power_w is not None:
+            return "standby" if power_w == 0 else "normal"
+
+        return "unknown"
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+        asset_id = kwargs.get("asset_id")
+        records_in = _extract_records(payload)
+
+        out: List[Dict[str, Any]] = []
+        for r in records_in:
+            normalized = r.get("normalized") if isinstance(r.get("normalized"), dict) else r
+            ts = _to_iso8601(normalized.get("timestamp"), timezone=timezone)
+            if not ts:
+                continue
+
+            p_w = _to_float(normalized.get("active_power_w"))
+            e_wh = _to_float(normalized.get("active_energy_wh"))
+
+            kwh = (e_wh / 1000.0) if e_wh is not None else max(((p_w or 0.0) / 1000.0) * interval_hours, 0.0)
+            error_type = self._resolve_error_type(normalized, p_w)
+
+            rec = _base_record(
+                timestamp=ts,
+                kwh=kwh,
+                error_type=error_type,
+                error_code=normalized.get("status_code"),
+                asset_id=asset_id,
+            )
+            if p_w is not None:
+                rec["kW"] = p_w / 1000.0
+            for src, dst in [
+                ("voltage_dc_v", "voltage_dc"),
+                ("current_dc_a", "current_dc"),
+                ("temperature_c", "temperature"),
+                ("voltage_v", "voltage_ac"),
+                ("current_a", "current_ac"),
+                ("frequency_hz", "frequency"),
             ]:
                 val = _to_float(normalized.get(src))
                 if val is not None:
