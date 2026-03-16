@@ -202,6 +202,67 @@ class TransformerRuntimeTests(unittest.TestCase):
         self.assertEqual(rows[0]["error_code"], "200")
         self.assertAlmostEqual(rows[0]["kW"], 4.6)
 
+    def test_higeco_normalized_log_data_mapping(self):
+        payload = """
+        {
+          "records": [
+            {
+              "normalized": {
+                "timestamp": "2026-03-15T10:00:00Z",
+                "active_power_w": 5200,
+                "active_energy_wh": 1300,
+                "temperature_c": 38.5,
+                "connectionStatus": "CONNECTED",
+                "powerStatus": "ON"
+              }
+            }
+          ]
+        }
+        """
+        rows = transform(payload, source="higeco")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["error_type"], "normal")
+        self.assertAlmostEqual(rows[0]["kWh"], 1.3)
+        self.assertAlmostEqual(rows[0]["kW"], 5.2)
+        self.assertEqual(rows[0]["temperature"], 38.5)
+
+    def test_higeco_disconnected_maps_offline(self):
+        payload = """
+        {
+          "records": [
+            {
+              "normalized": {
+                "timestamp": "2026-03-15T10:00:00Z",
+                "active_power_w": 0,
+                "connectionStatus": "DISCONNECTED",
+                "powerStatus": "OFF"
+              }
+            }
+          ]
+        }
+        """
+        rows = transform(payload, source="higeco")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["error_type"], "offline")
+
+    def test_higeco_fault_status_mapping(self):
+        payload = """
+        {
+          "data": [
+            {
+              "normalized": {
+                "timestamp": "2026-03-15T10:00:00Z",
+                "active_power_w": 0,
+                "powerStatus": "FAULT"
+              }
+            }
+          ]
+        }
+        """
+        rows = transform(payload, source="higeco")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["error_type"], "fault")
+
 
 class EnergyTimeseriesValidationTests(unittest.TestCase):
     """Tests for the extended energy-timeseries schema fields."""
