@@ -1,0 +1,369 @@
+# Sungrow iSolarCloud API to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://developer.isolarcloud.com/
+
+transform:
+  name: sungrow-isolarcloud-api
+  version: "1.0"
+  oem: Sungrow
+  description: Transform Sungrow iSolarCloud Developer Portal API data to ODS-E format
+
+input_schema:
+  format: json
+  api_base: "https://gateway.isolarcloud.com/v1"
+  authentication:
+    type: oauth2
+    grant_types: [authorization_code, refresh_token, client_credentials]
+    authorize_endpoint: "https://gateway.isolarcloud.com/oauth/authorize"
+    token_endpoint: "https://gateway.isolarcloud.com/oauth/token"
+    scopes: ["plant:read", "device:read"]
+    token_expiration: 7200  # seconds
+    refresh_required: true
+
+  endpoints:
+    plant_list:
+      path: "/plants"
+      method: GET
+      description: Retrieve list of plants accessible to the authenticated user
+      params:
+        page: integer
+        page_size: integer
+      response:
+        total: integer
+        plants:
+          - plant_id: string
+            plant_name: string
+            capacity_kw: float
+            timezone: string
+            location:
+              latitude: float
+              longitude: float
+
+    plant_realtime:
+      path: "/plants/{plant_id}/realtime"
+      method: GET
+      description: Current operational data for a plant
+      response:
+        plant_id: string
+        timestamp: datetime  # ISO 8601
+        total_power: float   # W
+        daily_energy: float  # Wh
+        total_energy: float  # Wh (lifetime)
+        status: integer
+        device_count: integer
+
+    device_list:
+      path: "/plants/{plant_id}/devices"
+      method: GET
+      description: List of devices (inverters) in a plant
+      response:
+        devices:
+          - device_id: string
+            device_sn: string
+            device_type: string
+            device_model: string
+            rated_power: float  # W
+            status: integer
+
+    device_telemetry:
+      path: "/devices/{device_id}/telemetry"
+      method: GET
+      description: Detailed telemetry from a specific device
+      params:
+        start_time: datetime
+        end_time: datetime
+      response:
+        device_id: string
+        data_points:
+          - timestamp: datetime
+            active_power: float        # W
+            reactive_power: float      # VAR
+            apparent_power: float      # VA
+            power_factor: float        # 0-1
+            voltage_a: float           # V
+            voltage_b: float           # V
+            voltage_c: float           # V
+            current_a: float           # A
+            current_b: float           # A
+            current_c: float           # A
+            frequency: float           # Hz
+            dc_voltage_1: float        # V
+            dc_voltage_2: float        # V
+            dc_current_1: float        # A
+            dc_current_2: float        # A
+            temperature: float         # °C
+            daily_energy: float        # Wh
+            total_energy: float        # Wh
+            status_code: integer
+            fault_code: integer
+
+    historical_data:
+      path: "/plants/{plant_id}/history"
+      method: GET
+      description: Historical data with aggregation
+      params:
+        start_date: date
+        end_date: date
+        interval: string  # "5min", "15min", "1hour", "1day"
+      response:
+        plant_id: string
+        interval: string
+        data_points:
+          - timestamp: datetime
+            power: float      # W (average)
+            energy: float     # Wh (sum)
+            status: integer
+
+output_mapping:
+  # From plant_realtime endpoint
+  from_plant_realtime:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+      description: Convert to ISO 8601 format
+    kW:
+      source: input.total_power
+      transform: divide_by_1000
+      description: Convert W to kW
+    kWh:
+      source: input.daily_energy
+      transform: divide_by_1000
+      description: Convert Wh to kWh (daily)
+    error_type:
+      function: map_plant_status
+      inputs: [input.status]
+    error_code:
+      source: input.status
+      transform: to_string
+
+  # From device_telemetry endpoint (preferred - most complete)
+  from_device_telemetry:
+    timestamp:
+      source: input.data_points[].timestamp
+      transform: to_iso8601
+    kW:
+      source: input.data_points[].active_power
+      transform: divide_by_1000
+    kVA:
+      source: input.data_points[].apparent_power
+      transform: divide_by_1000
+    kVAr:
+      source: input.data_points[].reactive_power
+      transform: divide_by_1000
+    PF:
+      source: input.data_points[].power_factor
+      description: Power factor directly from device
+    voltage_ac:
+      function: average_non_zero
+      inputs:
+        - input.data_points[].voltage_a
+        - input.data_points[].voltage_b
+        - input.data_points[].voltage_c
+      unit: V
+      description: Average of 3-phase voltages
+    current_ac:
+      function: sum_non_null
+      inputs:
+        - input.data_points[].current_a
+        - input.data_points[].current_b
+        - input.data_points[].current_c
+      unit: A
+      description: Sum of 3-phase currents
+    frequency:
+      source: input.data_points[].frequency
+      unit: Hz
+    voltage_dc:
+      function: max_non_null
+      inputs:
+        - input.data_points[].dc_voltage_1
+        - input.data_points[].dc_voltage_2
+      unit: V
+      description: Maximum DC voltage across strings
+    current_dc:
+      function: sum_non_null
+      inputs:
+        - input.data_points[].dc_current_1
+        - input.data_points[].dc_current_2
+      unit: A
+      description: Sum of DC currents across strings
+    temperature:
+      source: input.data_points[].temperature
+      unit: C
+    kWh:
+      source: input.data_points[].daily_energy
+      transform: divide_by_1000
+      description: Daily energy in kWh
+    error_type:
+      function: map_device_status
+      inputs:
+        - input.data_points[].status_code
+    error_code:
+      source: input.data_points[].fault_code
+      transform: to_string
+    oem_error_code:
+      source: input.data_points[].status_code
+      transform: to_string
+
+  # From historical_data endpoint
+  from_historical_data:
+    timestamp:
+      source: input.data_points[].timestamp
+      transform: to_iso8601
+    kW:
+      source: input.data_points[].power
+      transform: divide_by_1000
+      description: Average power for interval
+    kWh:
+      source: input.data_points[].energy
+      transform: divide_by_1000
+      description: Energy sum for interval
+    error_type:
+      function: map_plant_status
+      inputs:
+        - input.data_points[].status
+
+status_mapping:
+  device_status_to_error_type:
+    0: offline       # Disconnected
+    1: standby       # Standby
+    2: standby       # Starting
+    3: normal        # Running
+    4: normal        # Generating
+    5: warning       # Derating
+    6: fault         # Fault
+    7: fault         # Alarm
+    8: standby       # Shutdown
+    9: warning       # Communication fault
+    10: offline      # Not communicating
+    11: standby      # Sleeping
+    12: warning      # Maintenance
+    13: critical     # Emergency stop
+    14: warning      # Grid abnormal
+    15: fault        # Inverter fault
+
+  plant_status_to_error_type:
+    0: offline       # All devices offline
+    1: normal        # All devices normal
+    2: warning       # Some devices warning
+    3: fault         # Some devices fault
+    4: critical      # Critical fault
+    5: standby       # All devices standby
+
+calculations:
+  power_factor_from_powers:
+    description: Calculate PF when not directly available
+    formula: "active_power / apparent_power if apparent_power > 0 else 1.0"
+    bounds: [0, 1]
+  
+  wh_to_kwh:
+    description: Convert Wh to kWh
+    formula: "value / 1000.0"
+  
+  w_to_kw:
+    description: Convert W to kW
+    formula: "value / 1000.0"
+  
+  average_non_zero:
+    description: Average of non-zero values
+    formula: "sum(filter(values, lambda x: x > 0)) / count(filter(values, lambda x: x > 0))"
+  
+  sum_non_null:
+    description: Sum of non-null values
+    formula: "sum(filter(values, lambda x: x is not None))"
+  
+  max_non_null:
+    description: Maximum of non-null values
+    formula: "max(filter(values, lambda x: x is not None))"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+      description: Energy cannot exceed 110% of rated capacity * time
+    kW:
+      min: 0
+      max_formula: "capacity_kw * 1.1"
+      description: Power cannot exceed 110% of rated capacity
+    PF:
+      min: 0
+      max: 1
+      description: Power factor must be between 0 and 1
+    voltage_ac:
+      min: 0
+      max: 500
+      description: AC voltage reasonable range
+    frequency:
+      min: 45
+      max: 65
+      description: Grid frequency reasonable range
+    temperature:
+      min: -40
+      max: 100
+      description: Operating temperature range
+  temporal:
+    expected_intervals: ["5min", "15min", "1hour", "1day"]
+    max_gap: "24h"
+    description: Data should arrive at regular intervals with no gaps exceeding 24 hours
+
+api_limits:
+  plant_realtime:
+    rate_limit: "60 requests/minute"
+    daily_limit: "10000 requests/day"
+    description: Real-time data endpoint
+  
+  device_telemetry:
+    rate_limit: "30 requests/minute"
+    daily_limit: "5000 requests/day"
+    max_period: "7 days"
+    description: Device telemetry limited to 7-day queries
+  
+  historical_data:
+    rate_limit: "20 requests/minute"
+    daily_limit: "2000 requests/day"
+    max_period: "1 year"
+    description: Historical data supports longer periods
+  
+  token_refresh:
+    token_lifetime: "7200 seconds"
+    refresh_before_expiry: "300 seconds"
+    description: Refresh token 5 minutes before expiration
+
+notes: |
+  Sungrow iSolarCloud API provides OAuth 2.0 authenticated access to monitoring
+  data from Sungrow solar installations via the iSolarCloud Developer Portal.
+
+  Recommended endpoints by use case:
+  - Real-time monitoring dashboard: plant_realtime (5-minute polling)
+  - Detailed device analysis: device_telemetry (complete electrical parameters)
+  - Historical analysis: historical_data (supports longer time ranges)
+  - Multi-device plants: Query device_list first, then device_telemetry for each
+
+  OAuth 2.0 Flow:
+  1. Request authorization code from authorize_endpoint
+  2. Exchange authorization code for access token at token_endpoint
+  3. Use access token in API requests (Bearer token in Authorization header)
+  4. Refresh token before expiration (7200 seconds) using refresh_token grant
+
+  Timezone Handling:
+  - All timestamps are in the plant's configured timezone
+  - The timezone field in plant metadata indicates the timezone
+  - Convert to UTC or preserve timezone information in ISO 8601 format
+
+  API Quirks:
+  - Null power values indicate no data available (device offline)
+  - Zero power values indicate device is online but not generating
+  - daily_energy resets at midnight in plant timezone
+  - total_energy is lifetime cumulative
+  - Three-phase values may be null for single-phase installations
+  - Status codes and fault codes provide different levels of diagnostic detail
+
+  Error Response Structure:
+  {
+    "error": "invalid_token",
+    "error_description": "The access token expired",
+    "error_code": 401
+  }
+
+  For ODS-E compliance, device_telemetry endpoint provides the most complete data
+  including power factor, reactive power, and detailed electrical parameters.
