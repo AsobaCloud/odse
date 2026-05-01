@@ -2,7 +2,7 @@
 
 This document captures API onboarding requirements for inverter OEMs used by ODS-E transforms, including OEMs with newly added transform specifications.
 
-Last reviewed: 2026-02-09
+Last reviewed: 2026-05-01
 
 ## Transform Specs
 
@@ -16,6 +16,7 @@ Last reviewed: 2026-02-09
 - Solis: `transforms/soliscloud-api.yaml`
 - SolaX: `transforms/solaxcloud-api-v2.yaml`
 - Higeco: `transforms/higeco-api.yaml`
+- Sungrow: `transforms/sungrow-isolarcloud-api.yaml`
 
 ## Runtime Support (Python `odse.transform`)
 
@@ -32,6 +33,7 @@ Last reviewed: 2026-02-09
 | `sma` | Implemented (normalized contract input) |
 | `solis`, `soliscloud` | Implemented (normalized contract input) |
 | `higeco` | Implemented (normalized contract input) |
+| `sungrow`, `isolarcloud` | Implemented |
 
 ## Runtime Verification Harness
 
@@ -101,6 +103,7 @@ Troubleshooting:
 | SolisCloud | Included (Spec) | Cloud API | Complete Solis cooperation/application process and receive API activation materials | OAuth2 with AppKey/AppSecret |
 | SolaX Cloud | Included (Spec) | Cloud API | Generate API token in Solax Cloud third-party ecosystem settings | API token |
 | Higeco | Included (Spec) | Cloud API (docAPI) | Obtain API credentials from Higeco for target instance | Bearer token (POST /authenticate) |
+| Sungrow iSolarCloud | Included | Cloud API (Developer Portal) | Register app in iSolarCloud Developer Portal and obtain API credentials | OAuth2 (authorization code, refresh token, client credentials) |
 
 ## Setup Instructions By OEM
 
@@ -202,6 +205,43 @@ Official references:
 
 Official references:
 - Higeco docAPI endpoint hierarchy is instance-specific; consult your Higeco account representative for documentation access.
+
+### Sungrow iSolarCloud (Included)
+
+1. Register for an account on the iSolarCloud Developer Portal at https://developer.isolarcloud.com/
+2. Create a new application in the Developer Portal:
+   - Navigate to Applications section
+   - Click "Create" and provide application details
+   - Specify whether OAuth 2.0 access is required
+3. Wait for application approval (typically 1-2 business days)
+4. Once approved, retrieve your application credentials:
+   - `AppKey` (Client ID)
+   - `AppSecret` (Client Secret)
+   - API base URL: `https://gateway.isolarcloud.com/v1`
+5. Implement OAuth 2.0 flow:
+   - Authorization endpoint: `https://gateway.isolarcloud.com/oauth/authorize`
+   - Token endpoint: `https://gateway.isolarcloud.com/oauth/token`
+   - Supported grant types: authorization_code, refresh_token, client_credentials
+   - Required scopes: `plant:read`, `device:read`
+6. Token management:
+   - Access tokens expire after 7200 seconds (2 hours)
+   - Refresh tokens before expiration (recommended: 5 minutes before)
+   - Store tokens securely
+
+API Endpoints:
+- Plant list: `GET /plants` - List all accessible plants
+- Plant real-time: `GET /plants/{plant_id}/realtime` - Current operational data
+- Device list: `GET /plants/{plant_id}/devices` - List devices in a plant
+- Device telemetry: `GET /devices/{device_id}/telemetry` - Detailed device data (preferred for complete electrical parameters)
+- Historical data: `GET /plants/{plant_id}/history` - Aggregated time-series data
+
+Rate Limits:
+- Plant real-time: 60 requests/minute, 10,000 requests/day
+- Device telemetry: 30 requests/minute, 5,000 requests/day (max 7-day query period)
+- Historical data: 20 requests/minute, 2,000 requests/day (max 1-year query period)
+
+Official references:
+- https://developer.isolarcloud.com/
 
 ## Implementation Notes For ODS-E
 
