@@ -6,6 +6,18 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-01
+
+### Added
+- Sungrow iSolarCloud API transform specification with OAuth 2.0 authentication support.
+- Sungrow Python transformer implementation (`SungrowTransformer`) supporting plant_realtime, device_telemetry, and historical_data endpoints.
+- Device status code mapping (16 codes) and plant status code mapping (6 codes) to ODS-E error types.
+- 3-phase AC electrical parameter handling with voltage averaging and current summing.
+- Multi-string DC parameter support with max voltage and summed current calculations.
+- Power factor calculation from active/apparent power when not directly available.
+- Comprehensive API documentation including rate limits, OAuth flow, and timezone handling.
+- Support for complete ODS-E electrical parameters: kW, kWh, kVA, kVAr, PF, voltage_ac, current_ac, frequency, voltage_dc, current_dc, temperature.
+
 ## [0.5.0] - 2026-03-15
 
 ### Added
