@@ -71,6 +71,7 @@ def main(argv=None):
         "validate",
         help="Validate ODS-E records",
     )
+    # ... (rest of validate arguments)
     p_validate.add_argument(
         "--input",
         "-i",
@@ -99,6 +100,23 @@ def main(argv=None):
         "--longitude", type=float, help="Site longitude",
     )
 
+    # --- ingest ---
+    p_ingest = subparsers.add_parser(
+        "ingest",
+        help="Real-time ingestion from industrial connectors (MQTT, OPC-UA)",
+    )
+    p_ingest.add_argument(
+        "--config",
+        "-c",
+        required=True,
+        help="Path to connector configuration YAML",
+    )
+    p_ingest.add_argument(
+        "-o",
+        "--output",
+        help="Output file path (JSONL, default: stdout)",
+    )
+
     p_version = subparsers.add_parser("version", help="Print ODS-E version")
     p_version.set_defaults(command="version")
 
@@ -112,9 +130,79 @@ def main(argv=None):
         _cmd_transform(args)
     elif args.command == "validate":
         _cmd_validate(args)
+    elif args.command == "ingest":
+        _cmd_ingest(args)
     elif args.command == "version":
         print(__version__)
         sys.exit(0)
+
+
+def _cmd_ingest(args):
+    """Run real-time ingestion from industrial connectors."""
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"Error: configuration file not found: {args.config}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        import yaml
+    except ImportError:
+        print("Error: PyYAML is required for ingestion. Install with: pip install pyyaml", file=sys.stderr)
+        sys.exit(1)
+
+    with config_path.open("r", encoding="utf-8") as f:
+        config_full = yaml.safe_load(f)
+        
+    connector_cfg = config_full.get("connector", {})
+    conn_type = connector_cfg.get("type")
+    
+    if not conn_type:
+        print("Error: Configuration must specify connector.type (mqtt or opcua)", file=sys.stderr)
+        sys.exit(1)
+
+    # Setup output sink
+    output_handle = None
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_handle = output_path.open("a", encoding="utf-8")
+
+    def on_record(record):
+        line = json.dumps(record, separators=(",", ":"))
+        if output_handle:
+            output_handle.write(line + "\n")
+            output_handle.flush()
+        else:
+            print(line)
+
+    try:
+        if conn_type == "mqtt":
+            from .connectors.mqtt import MQTTConnector
+            connector = MQTTConnector(connector_cfg)
+            connector.on_record_callback = on_record
+            connector.connect()
+            print(f"Starting MQTT ingestion from {connector_cfg.get('broker')}...", file=sys.stderr)
+            connector.run(forever=True)
+            
+        elif conn_type == "opcua":
+            import asyncio
+            from .connectors.opcua import OPCUAConnector
+            connector = OPCUAConnector(connector_cfg)
+            connector.on_record_callback = on_record
+            print(f"Starting OPC-UA ingestion from {connector_cfg.get('endpoint')}...", file=sys.stderr)
+            asyncio.run(connector.run())
+        else:
+            print(f"Error: Unsupported connector type: {conn_type}", file=sys.stderr)
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\nIngestion stopped by user", file=sys.stderr)
+    except Exception as exc:
+        print(f"Error: Ingestion failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        if output_handle:
+            output_handle.close()
 
 
 def _cmd_transform(args):

@@ -39,6 +39,18 @@ parquet = [
 dataframe = [
     "pandas>=1.5.0",
 ]
+mqtt = [
+    "paho-mqtt>=1.6.0",
+]
+opcua = [
+    "asyncua>=1.0.0",
+]
+ingest = [
+    "PyYAML>=6.0.0",
+    "jsonpath-ng>=1.5.0",
+    "paho-mqtt>=1.6.0",
+    "asyncua>=1.0.0",
+]
 
 [project.urls]
 Homepage = "https://opendataschema.energy"
