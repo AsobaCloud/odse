@@ -6,6 +6,19 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-31
+
+### Added
+- Industrial connectors for MQTT and OPC-UA real-time ingestion (`odse.connectors.mqtt`, `odse.connectors.opcua`).
+- SCADA (IEC 61850) and Eskom (AMR/Portal) connector specifications and implementations.
+- Standardized battery storage support in energy timeseries and asset metadata schemas: `soc` (state of charge), `soh` (state of health), and `capacity_kwh`.
+- MQTT ingestion configuration examples and documentation.
+
+### Changed
+- Harmonized integration documentation across all supported industrial connectors.
+- Updated Sungrow inverter API access documentation.
+- Refined regulatory event normalization logic and unified transform specifications.
+
 ## [0.6.0] - 2026-05-01
 
 ### Added
