@@ -442,6 +442,25 @@ def _validate_schema(data: dict) -> List[ValidationError]:
     _check_optional_type(data, "carbon_intensity_gCO2_per_kWh", "number", errors, "number")
     _check_optional_minimum(data, "carbon_intensity_gCO2_per_kWh", 0, errors)
 
+    # --- Battery ---
+    _check_optional_type(data, "soc", "number", errors, "number")
+    _check_optional_minimum(data, "soc", 0, errors)
+    if "soc" in data and isinstance(data["soc"], (int, float)) and data["soc"] > 100:
+        errors.append(ValidationError(
+            path="$.soc",
+            message="SOC must be <= 100",
+            code="OUT_OF_BOUNDS",
+        ))
+
+    _check_optional_type(data, "soh", "number", errors, "number")
+    _check_optional_minimum(data, "soh", 0, errors)
+    if "soh" in data and isinstance(data["soh"], (int, float)) and data["soh"] > 100:
+        errors.append(ValidationError(
+            path="$.soh",
+            message="SOH must be <= 100",
+            code="OUT_OF_BOUNDS",
+        ))
+
     return errors
 
 
