@@ -107,7 +107,12 @@
     "capacity_kw": {
       "type": "number",
       "minimum": 0,
-      "description": "Nameplate capacity in kilowatts"
+      "description": "Nameplate power capacity in kilowatts"
+    },
+    "capacity_kwh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Nameplate energy storage capacity in kilowatt-hours"
     },
     "oem": {
       "type": "string",

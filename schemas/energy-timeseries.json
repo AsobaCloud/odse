@@ -253,6 +253,18 @@
       "type": "number",
       "minimum": 0,
       "description": "Carbon intensity of the generation source in grams CO2e per kWh."
+    },
+    "soc": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Battery state of charge in percent (0-100)"
+    },
+    "soh": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Battery state of health in percent (0-100)"
     }
   },
   "if": {
