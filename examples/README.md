@@ -9,10 +9,13 @@ python3 examples/basic_transform.py
 python3 examples/generic_csv_transform.py
 python3 examples/pipeline.py
 python3 examples/batch_directory.py
+python3 examples/eskom_and_scl_demo.py
 ```
 
 ## Included examples
 
+- `examples/eskom_and_scl_demo.py`
+  - Demonstrates IEC 61850 SCL metadata extraction and Eskom (AMR/Portal) data transformation.
 - `examples/basic_transform.py`
   - Single OEM transform (Huawei fixture) -> JSONL + Parquet output.
 - `examples/generic_csv_transform.py`

@@ -1,0 +1,3 @@
+Date,Time,RSA Contracted Forecast,Residual Forecast,Thermal Generation,Nuclear Generation,Renewable Generation,Pumped Storage Generation,Import,Export,Total Demand,System Frequency
+2026-05-31,06:00:00,30000,28000,20000,1800,4500,1200,500,0,28500,50.02
+2026-05-31,06:30:00,31000,29000,21000,1800,4800,1100,400,0,29500,50.01

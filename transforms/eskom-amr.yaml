@@ -1,0 +1,119 @@
+# Eskom AMR (NRS 049 Standard) to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+
+transform:
+  name: eskom-amr
+  version: "1.0"
+  oem: Eskom
+  description: Transform Eskom AMR NRS 049 meter data to ODS-E format
+
+input_schema:
+  format: csv
+  structure: array
+  fields:
+    - name: MeterNumber
+      type: string
+      required: true
+      description: Unique meter identifier
+    - name: Date
+      type: date
+      required: true
+      description: Reading date
+    - name: Time
+      type: time
+      required: false
+      description: Reading time
+    - name: kWh_Import
+      type: number
+      required: true
+      description: Energy imported in kWh
+    - name: kWh_Export
+      type: number
+      required: false
+      description: Energy exported in kWh
+    - name: kVArh_Q1
+      type: number
+      required: false
+      description: Reactive energy quadrant 1
+    - name: kVArh_Q2
+      type: number
+      required: false
+      description: Reactive energy quadrant 2
+    - name: kVArh_Q3
+      type: number
+      required: false
+      description: Reactive energy quadrant 3
+    - name: kVArh_Q4
+      type: number
+      required: false
+      description: Reactive energy quadrant 4
+    - name: billing_status
+      type: string
+      required: false
+      description: Billing status (metered, estimated, adjusted, disputed)
+
+output_mapping:
+  timestamp:
+    source: input.Date, input.Time
+    transform: combine_datetime
+  kWh:
+    source: input.kWh_Import, input.kWh_Export
+    transform: net_energy
+  kWh_import:
+    source: input.kWh_Import
+    transform: interval_energy
+  kWh_export:
+    source: input.kWh_Export
+    transform: interval_energy
+  kVArh:
+    source: input.kVArh_Q1, input.kVArh_Q2, input.kVArh_Q3, input.kVArh_Q4
+    transform: sum_quadrants
+  billing_status:
+    source: input.billing_status
+    transform: normalize_status
+  asset_id:
+    source: input.MeterNumber
+    transform: generate_asset_id
+    prefix: "za-eskom:meter:"
+
+status_derivation:
+  normal:
+    condition: "input.billing_status == 'metered' OR input.billing_status == 'M'"
+  warning:
+    condition: "input.billing_status == 'estimated' OR input.billing_status == 'E'"
+  critical:
+    condition: "input.billing_status == 'disputed' OR input.billing_status == 'D'"
+
+validation:
+  physical_bounds:
+    kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    kWh_import:
+      min: 0
+    kWh_export:
+      min: 0
+  temporal:
+    expected_interval: "30min"
+    max_gap: "4h"
+  billing_compliance:
+    required_fields: ["billing_status"]
+    valid_statuses: ["metered", "estimated", "adjusted", "disputed"]
+
+notes: |
+  This transform handles Eskom AMR (Automatic Meter Reading) data conforming to
+  the NRS 049 standard. It is critical for billing and wheeling reconciliation.
+  
+  Key features:
+  - Billing status field is mandatory for Eskom compliance
+  - Supports 4-quadrant reactive energy measurement
+  - Handles both import and export energy tracking
+  - Generates asset_id from meter number following ODS-E convention
+  
+  Interval calculation:
+  - Default interval is 30 minutes (configurable via interval_minutes parameter)
+  - kWh values are converted from cumulative to interval deltas
+  - Net energy = Import - Export
+  
+  For municipal sites under DAA (Distribution Agency Agreement), the daa_reference
+  field should be populated separately in the reconciliation workflow.
