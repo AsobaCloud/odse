@@ -1,0 +1,32 @@
+# ODS-E MQTT Ingestion Configuration Example
+# Use with: odse ingest --config examples/mqtt_ingest_config.yaml
+
+connector:
+  type: mqtt
+  broker: "localhost"
+  port: 1883
+  client_id: "odse-ingest-demo"
+  
+  # auth:
+  #   username: ${MQTT_USER}
+  #   password: ${MQTT_PASS}
+  
+  subscriptions:
+    # Example: Inverters publishing to a site-based hierarchy
+    # Topic format: site/site-01/inv/inv-55/telemetry
+    - topic: "site/+/inv/+/telemetry"
+      asset_id_template: "za:{0}:inv:{1}" # Maps segments from topic wildcards
+      mapping:
+        timestamp: "$.time"           # JSONPath for timestamp
+        kWh: "$.metrics.energy_total" # JSONPath for energy
+        kW: "$.metrics.power_active"  # JSONPath for real-time power
+        error_type: "$.status.level"  # Mapped to ODS-E enum (normal, warning, etc.)
+        
+    # Example: Smart meters with simple flat JSON
+    # Topic format: meters/m101/data
+    - topic: "meters/+/data"
+      asset_id_template: "za:utility:meter:{0}"
+      mapping:
+        timestamp: "timestamp" # Direct field access
+        kWh: "reading_kwh"
+        billing_status: "status" # metered, estimated, etc.

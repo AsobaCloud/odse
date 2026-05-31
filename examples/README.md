@@ -14,6 +14,8 @@ python3 examples/eskom_and_scl_demo.py
 
 ## Included examples
 
+- `examples/mqtt_ingest_config.yaml`
+  - Sample configuration for the `odse ingest` command to handle real-time MQTT telemetry.
 - `examples/eskom_and_scl_demo.py`
   - Demonstrates IEC 61850 SCL metadata extraction and Eskom (AMR/Portal) data transformation.
 - `examples/basic_transform.py`

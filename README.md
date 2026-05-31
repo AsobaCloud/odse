@@ -27,8 +27,14 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Schema: `energy-timeseries.json`](schemas/energy-timeseries.json)
 - [Schema: `asset-metadata.json`](schemas/asset-metadata.json)
 - [Transform harness usage](tools/transform_harness.py)
+
+### Integration Guides
 - [Inverter API access setup](spec/inverter-api-access.md)
-- [Industrial Protocol Integration (MQTT, OPC-UA)](spec/industrial-connectors.md)
+- [Industrial Protocols (MQTT, OPC-UA)](spec/industrial-connectors.md)
+- [SCADA (IEC 61850) Integration](spec/scada-integration.md)
+- [Eskom Ingest (AMR, Data Portal)](spec/eskom-ingest.md)
+
+### Modeling & Markets
 - [ComStock/ResStock integration](spec/comstock-integration.md)
 - [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 - [Market context extensions (settlement, tariff, topology)](spec/market-context.md)
