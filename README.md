@@ -18,7 +18,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Specification docs](spec/)
 - [Schemas](schemas/)
 - [Transforms](transforms/) (Huawei, Eskom, etc.)
-- [Python reference runtime](src/python/) (including SCL and AMR connectors)
+- [Python reference runtime](src/python/) (including SCL, AMR, MQTT, and OPC-UA connectors)
 - [Tools](tools/)
 - [Demos](demos/)
 
@@ -28,6 +28,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Schema: `asset-metadata.json`](schemas/asset-metadata.json)
 - [Transform harness usage](tools/transform_harness.py)
 - [Inverter API access setup](spec/inverter-api-access.md)
+- [Industrial Protocol Integration (MQTT, OPC-UA)](spec/industrial-connectors.md)
 - [ComStock/ResStock integration](spec/comstock-integration.md)
 - [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 - [Market context extensions (settlement, tariff, topology)](spec/market-context.md)
