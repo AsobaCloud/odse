@@ -17,8 +17,8 @@ ODS-E is an open specification for interoperable energy asset data across genera
 
 - [Specification docs](spec/)
 - [Schemas](schemas/)
-- [Transforms](transforms/)
-- [Python reference runtime](src/python/)
+- [Transforms](transforms/) (Huawei, Eskom, etc.)
+- [Python reference runtime](src/python/) (including SCL and AMR connectors)
 - [Tools](tools/)
 - [Demos](demos/)
 

@@ -53,6 +53,9 @@ Publish this matrix in docs and outreach posts.
 | OEM | Transform Spec | Runtime Function | Live-Tested Evidence | Access Path |
 |-----|----------------|------------------|----------------------|------------|
 | Huawei | Yes | Yes | Production | FusionSolar Northbound |
+| Eskom AMR | Yes | Yes | NRS 049 Compliant | utility-file-export |
+| Eskom Portal | No (Hardcoded) | Yes | Portal Sample | eskom.co.za/dataportal |
+| IEC 61850 | SCL (Metadata) | Yes | SCD/CID Parser | substation-scl-file |
 | Switch | Yes | Yes | Production | Vendor/customer feed |
 | Enphase | Yes | Yes | Demo-ready | Enphase developer app |
 | SMA | Yes | Yes | Demo-ready | SMA sandbox + OAuth |

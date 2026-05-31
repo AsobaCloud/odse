@@ -84,6 +84,12 @@ def _get_transformer(source: str):
         "sungrow": SungrowTransformer(),
         "isolarcloud": SungrowTransformer(),
         "higeco": HigecoTransformer(),
+        "eskom_portal": EskomPortalTransformer(),
+        "eskom-portal": EskomPortalTransformer(),
+        "eskom": EskomPortalTransformer(),
+        "eskom_amr": EskomAMRTransformer(),
+        "eskom-amr": EskomAMRTransformer(),
+        "nrs049": EskomAMRTransformer(),
         "csv": GenericCSVTransformer(),
         "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
@@ -1138,6 +1144,219 @@ class SungrowTransformer(BaseTransformer):
             return out
 
         return out
+
+
+class EskomPortalTransformer(BaseTransformer):
+    """
+    Transform Eskom Data Portal CSV data to ODS-E format.
+    
+    Handles wide-format CSVs from the Eskom Data Request Form.
+    Melts wide columns (one per metric) into ODS-E long format,
+    assigning each column to a specific asset_id.
+    
+    Example columns: Date, Time, RSA Contracted Forecast, Residual Forecast,
+    Thermal Generation, Nuclear Generation, etc.
+    """
+    
+    # Column to asset_id mapping for Eskom national metrics
+    COLUMN_ASSET_MAP = {
+        "rsa_contracted_forecast": "za-eskom:generation:rsa-contracted-forecast",
+        "residual_forecast": "za-eskom:generation:residual-forecast",
+        "thermal_generation": "za-eskom:generation:thermal",
+        "nuclear_generation": "za-eskom:generation:nuclear",
+        "renewable_generation": "za-eskom:generation:renewable",
+        "pumped_storage_generation": "za-eskom:generation:pumped-storage",
+        "import": "za-eskom:generation:import",
+        "export": "za-eskom:generation:export",
+        "total_demand": "za-eskom:demand:total",
+        "system_frequency": "za-eskom:grid:frequency",
+    }
+    
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone", "Africa/Johannesburg")
+        interval_hours = (kwargs.get("interval_minutes", 30) or 30) / 60.0
+        
+        records: List[Dict[str, Any]] = []
+        
+        for row in rows:
+            # Parse timestamp from Date and Time columns
+            date_val = _first_value(row, ["Date", "date", "DATE"])
+            time_val = _first_value(row, ["Time", "time", "TIME"])
+            
+            if date_val:
+                timestamp_str = f"{date_val} {time_val}" if time_val else date_val
+                iso_ts = _to_iso8601(timestamp_str, timezone=timezone)
+            else:
+                timestamp_raw = _first_value(row, ["timestamp", "Timestamp", "datetime"])
+                iso_ts = _to_iso8601(timestamp_raw, timezone=timezone)
+            
+            if not iso_ts:
+                continue
+            
+            # Process each metric column
+            for column, asset_id in self.COLUMN_ASSET_MAP.items():
+                # Try case-insensitive match
+                column_lower = column.lower()
+                column_space_lower = column_lower.replace("_", " ")
+                column_dash_lower = column_lower.replace("_", "-")
+                
+                value = None
+                for row_key in row.keys():
+                    row_key_lower = row_key.lower()
+                    if row_key_lower in [column_lower, column_space_lower, column_dash_lower]:
+                        value = row[row_key]
+                        break
+                
+                if value is None or value == "":
+                    continue
+                
+                value_float = _to_float(value)
+                if value_float is None:
+                    continue
+                
+                # Determine kWh based on metric type
+                if "generation" in column.lower() or "forecast" in column.lower():
+                    kwh = max(value_float * interval_hours, 0.0)
+                    direction = "generation"
+                elif "demand" in column.lower():
+                    kwh = max(value_float * interval_hours, 0.0)
+                    direction = "consumption"
+                elif "frequency" in column.lower():
+                    # Frequency is in Hz, not kWh
+                    kwh = 0.0
+                    # Store frequency in kW field for transport (non-standard but practical)
+                    kw = value_float / 1000.0 if value_float > 1 else value_float
+                else:
+                    kwh = max(value_float * interval_hours, 0.0)
+                    direction = "generation"
+                
+                record: Dict[str, Any] = {
+                    "timestamp": iso_ts,
+                    "kWh": kwh,
+                    "error_type": "normal",
+                    "error_code": None,
+                    "asset_id": asset_id,
+                }
+                
+                if "frequency" in column.lower():
+                    record["kW"] = kw
+                    record["frequency"] = value_float
+                else:
+                    record["kW"] = value_float  # Store power in kW
+                
+                if direction:
+                    record["direction"] = direction
+                
+                records.append(record)
+        
+        return records
+
+
+class EskomAMRTransformer(BaseTransformer):
+    """
+    Transform Eskom AMR (NRS 049 Standard) meter data to ODS-E format.
+    
+    Handles per-meter data used for billing and wheeling.
+    Format: MeterNumber, Date, kWh_Import, kWh_Export, kVArh_Q1, etc.
+    
+    Critical for Eskom compliance - uses billing_status field.
+    """
+    
+    BILLING_STATUS_MAPPING = {
+        "metered": "metered",
+        "estimated": "estimated",
+        "adjusted": "adjusted",
+        "disputed": "disputed",
+        "m": "metered",
+        "e": "estimated",
+        "a": "adjusted",
+        "d": "disputed",
+    }
+    
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone", "Africa/Johannesburg")
+        interval_hours = (kwargs.get("interval_minutes", 30) or 30) / 60.0
+        asset_id = kwargs.get("asset_id")
+        
+        records: List[Dict[str, Any]] = []
+        
+        for row in rows:
+            # Parse timestamp
+            date_val = _first_value(row, ["Date", "date", "ReadingDate"])
+            time_val = _first_value(row, ["Time", "time", "ReadingTime"])
+            
+            if date_val:
+                timestamp_str = f"{date_val} {time_val}" if time_val else date_val
+                iso_ts = _to_iso8601(timestamp_str, timezone=timezone)
+            else:
+                timestamp_raw = _first_value(row, ["timestamp", "Timestamp", "datetime"])
+                iso_ts = _to_iso8601(timestamp_raw, timezone=timezone)
+            
+            if not iso_ts:
+                continue
+            
+            # Extract meter number for asset_id if not provided
+            meter_number = _first_value(row, ["MeterNumber", "Meter", "meter_number", "meter_id"])
+            row_asset_id = asset_id or f"za-eskom:meter:{meter_number}" if meter_number else None
+            
+            # Extract energy values
+            kwh_import = _to_float(_first_value(row, ["kWh_Import", "Import", "kWhImport", "Import_kWh"]))
+            kwh_export = _to_float(_first_value(row, ["kWh_Export", "Export", "kWhExport", "Export_kWh"]))
+            kvarh_q1 = _to_float(_first_value(row, ["kVArh_Q1", "Q1", "kVArhQ1"]))
+            kvarh_q2 = _to_float(_first_value(row, ["kVArh_Q2", "Q2", "kVArhQ2"]))
+            kvarh_q3 = _to_float(_first_value(row, ["kVArh_Q3", "Q3", "kVArhQ3"]))
+            kvarh_q4 = _to_float(_first_value(row, ["kVArh_Q4", "Q4", "kVArhQ4"]))
+            
+            # Extract billing status
+            billing_status_raw = _first_value(row, ["billing_status", "BillingStatus", "Status", "status"])
+            billing_status = self.BILLING_STATUS_MAPPING.get(
+                str(billing_status_raw).lower() if billing_status_raw else "",
+                "metered"
+            )
+            
+            # Determine net energy (import - export)
+            kwh_import = kwh_import or 0.0
+            kwh_export = kwh_export or 0.0
+            net_kwh = max(kwh_import - kwh_export, 0.0)
+            
+            # Total reactive energy
+            total_kvarh = sum(filter(None, [kvarh_q1, kvarh_q2, kvarh_q3, kvarh_q4]))
+            
+            record: Dict[str, Any] = {
+                "timestamp": iso_ts,
+                "kWh": max(net_kwh * interval_hours, 0.0),
+                "error_type": "normal",
+                "error_code": None,
+            }
+            
+            if row_asset_id:
+                record["asset_id"] = row_asset_id
+            
+            # Add billing status for municipal reconciliation
+            record["billing_status"] = billing_status
+            
+            # Add reactive energy if available
+            if total_kvarh is not None:
+                record["kVArh"] = max(total_kvarh * interval_hours, 0.0)
+            
+            # Add import/export breakdown
+            if kwh_import is not None:
+                record["kWh_import"] = max(kwh_import * interval_hours, 0.0)
+            if kwh_export is not None:
+                record["kWh_export"] = max(kwh_export * interval_hours, 0.0)
+            
+            # Store meter reference
+            if meter_number:
+                record["oem_reference"] = {
+                    "meter_number": str(meter_number),
+                    "protocol": "NRS-049"
+                }
+            
+            records.append(record)
+        
+        return records
 
 
 class GenericCSVTransformer(BaseTransformer):
