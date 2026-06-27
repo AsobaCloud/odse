@@ -6,6 +6,13 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+### Added
+- BESS transforms (SEP-026): `SungrowBESSTransformer` (Sungrow PowerTitan via iSolarCloud) and `BYDBESSTransformer` (BYD BatteryBox / BMS CSV export), registered under source keys `sungrow_bess` and `byd_bess`.
+- Eight optional BESS schema fields in `energy-timeseries.json`: `charge_kWh`, `discharge_kWh`, `cycle_count`, `cell_temp_min_c`, `cell_temp_max_c`, `cell_voltage_min_v`, `cell_voltage_max_v`, and `dispatch_mode` (enum: charging/discharging/standby/balancing).
+- `bess_dispatch` conformance profile requiring `dispatch_mode` and `soc`.
+- Transform specifications `transforms/sungrow-powertitan.yaml` and `transforms/byd-bess.yaml`.
+- SEP-026 spec document `spec/bess-transforms.md`.
+
 ## [0.7.0] - 2026-05-31
 
 ### Added

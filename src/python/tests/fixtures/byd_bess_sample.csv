@@ -1,0 +1,4 @@
+timestamp,soc,soh,charge_power_kw,discharge_power_kw,cycle_count,cell_temp_min,cell_temp_max,cell_voltage_min,cell_voltage_max,bms_status,dispatch_mode
+2026-06-27 10:00:00,55.0,97.5,40.0,0.0,540,27.1,29.8,3.321,3.340,0,charging
+2026-06-27 10:15:00,54.2,97.5,0.0,60.0,540,28.4,32.5,3.318,3.335,0,discharging
+2026-06-27 10:30:00,54.0,97.5,0.0,0.0,540,26.9,28.0,3.320,3.332,1,standby

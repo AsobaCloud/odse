@@ -265,6 +265,44 @@
       "minimum": 0,
       "maximum": 100,
       "description": "Battery state of health in percent (0-100)"
+    },
+    "charge_kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Energy charged into the battery during this interval, in kilowatt-hours."
+    },
+    "discharge_kWh": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Energy discharged from the battery during this interval, in kilowatt-hours."
+    },
+    "cycle_count": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Cumulative number of charge/discharge cycles the battery has completed."
+    },
+    "cell_temp_min_c": {
+      "type": "number",
+      "description": "Minimum cell temperature observed during this interval, in degrees Celsius."
+    },
+    "cell_temp_max_c": {
+      "type": "number",
+      "description": "Maximum cell temperature observed during this interval, in degrees Celsius."
+    },
+    "cell_voltage_min_v": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Minimum cell voltage observed during this interval, in volts."
+    },
+    "cell_voltage_max_v": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum cell voltage observed during this interval, in volts."
+    },
+    "dispatch_mode": {
+      "type": "string",
+      "enum": ["charging", "discharging", "standby", "balancing"],
+      "description": "Battery dispatch state for this interval."
     }
   },
   "if": {

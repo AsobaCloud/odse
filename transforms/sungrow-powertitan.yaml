@@ -1,0 +1,223 @@
+# Sungrow PowerTitan BESS to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: https://developer.isolarcloud.com/
+# SEP: SEP-026
+
+transform:
+  name: sungrow-powertitan
+  version: "1.0"
+  oem: Sungrow
+  description: Transform Sungrow PowerTitan 2.0 BESS telemetry from iSolarCloud to ODS-E format
+  sep: SEP-026
+
+input_schema:
+  format: json
+  api_base: "https://gateway.isolarcloud.com/v1"
+  device_family: PowerTitan 2.0
+  authentication:
+    type: oauth2
+    grant_types: [authorization_code, refresh_token, client_credentials]
+    authorize_endpoint: "https://gateway.isolarcloud.com/oauth/authorize"
+    token_endpoint: "https://gateway.isolarcloud.com/oauth/token"
+    scopes: ["plant:read", "device:read", "bess:read"]
+    token_expiration: 7200  # seconds
+    refresh_required: true
+
+  endpoints:
+    bess_device_telemetry:
+      path: "/devices/{device_id}/telemetry"
+      method: GET
+      description: BESS telemetry from a PowerTitan device
+      params:
+        start_time: datetime
+        end_time: datetime
+      response:
+        device_id: string
+        device_model: string
+        data_points:
+          - timestamp: datetime
+            active_power: float          # W (negative = charging, positive = discharging)
+            charge_power: float          # W (absolute charge power)
+            discharge_power: float       # W (absolute discharge power)
+            reactive_power: float        # VAR
+            apparent_power: float        # VA
+            power_factor: float          # 0-1
+            frequency: float             # Hz
+            soc: float                   # 0-100
+            soh: float                   # 0-100
+            cycle_count: float           # cumulative cycles
+            max_cell_temp: float         # °C
+            min_cell_temp: float         # °C
+            max_cell_voltage: float      # V
+            min_cell_voltage: float      # V
+            daily_charge_energy: float   # Wh
+            daily_discharge_energy: float # Wh
+            run_mode: integer            # 0=standby, 1=charging, 2=discharging, 3=balancing
+            status_code: integer
+            fault_code: integer
+
+output_mapping:
+  from_bess_device_telemetry:
+    timestamp:
+      source: input.data_points[].timestamp
+      transform: to_iso8601
+    kWh:
+      function: net_discharge_kwh
+      inputs:
+        - input.data_points[].charge_power
+        - input.data_points[].discharge_power
+        - interval_hours
+      description: Net energy (discharge - charge), floored at 0, in kWh
+    charge_kWh:
+      function: power_times_interval
+      inputs:
+        - input.data_points[].charge_power
+        - interval_hours
+      scale: 0.001  # W to kW
+    discharge_kWh:
+      function: power_times_interval
+      inputs:
+        - input.data_points[].discharge_power
+        - interval_hours
+      scale: 0.001
+    soc:
+      source: input.data_points[].soc
+      bounds: [0, 100]
+    soh:
+      source: input.data_points[].soh
+      bounds: [0, 100]
+    cycle_count:
+      source: input.data_points[].cycle_count
+      minimum: 0
+    cell_temp_min_c:
+      source: input.data_points[].min_cell_temp
+    cell_temp_max_c:
+      source: input.data_points[].max_cell_temp
+    cell_voltage_min_v:
+      source: input.data_points[].min_cell_voltage
+      minimum: 0
+    cell_voltage_max_v:
+      source: input.data_points[].max_cell_voltage
+      minimum: 0
+    dispatch_mode:
+      function: map_run_mode
+      inputs:
+        - input.data_points[].run_mode
+    kW:
+      source: input.data_points[].active_power
+      transform: divide_by_1000
+    kVAr:
+      source: input.data_points[].reactive_power
+      transform: divide_by_1000
+    kVA:
+      source: input.data_points[].apparent_power
+      transform: divide_by_1000
+    PF:
+      source: input.data_points[].power_factor
+      bounds: [0, 1]
+    frequency:
+      source: input.data_points[].frequency
+    error_type:
+      function: map_status_code
+      inputs:
+        - input.data_points[].status_code
+    error_code:
+      source: input.data_points[].fault_code
+      transform: to_string
+    oem_error_code:
+      source: input.data_points[].status_code
+      transform: to_string
+
+status_mapping:
+  run_mode_to_dispatch_mode:
+    0: standby
+    1: charging
+    2: discharging
+    3: balancing
+
+  device_status_to_error_type:
+    0: offline
+    1: standby
+    2: standby
+    3: normal
+    4: normal
+    5: warning
+    6: fault
+    7: fault
+    8: standby
+    9: warning
+    10: offline
+    11: standby
+    12: warning
+    13: critical
+    14: warning
+    15: fault
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval
+    formula: "max((power_w / 1000.0) * interval_hours, 0.0)"
+  net_discharge_kwh:
+    description: Net energy as discharge minus charge, floored at 0
+    formula: "max(discharge_kwh - charge_kwh, 0.0)"
+
+validation:
+  physical_bounds:
+    soc:
+      min: 0
+      max: 100
+    soh:
+      min: 0
+      max: 100
+    charge_kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    discharge_kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    cell_temp_min_c:
+      min: -40
+      max: 80
+    cell_temp_max_c:
+      min: -40
+      max: 80
+    cell_voltage_min_v:
+      min: 0
+      max: 5
+    cell_voltage_max_v:
+      min: 0
+      max: 5
+    frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["5min", "15min", "1hour"]
+    max_gap: "24h"
+    description: BESS telemetry should arrive at regular intervals with no gaps exceeding 24 hours
+
+conformance:
+  profile: bess_dispatch
+  required_fields: [dispatch_mode, soc]
+  description: Use the bess_dispatch conformance profile to validate dispatch records
+
+api_limits:
+  bess_device_telemetry:
+    rate_limit: "30 requests/minute"
+    daily_limit: "5000 requests/day"
+    max_period: "7 days"
+    description: BESS telemetry limited to 7-day queries
+
+notes: |
+  Sungrow PowerTitan 2.0 is a liquid-cooled utility-scale BESS used in projects
+  such as Globeleq's Red Sands (153 MW / 612 MWh, Northern Cape, South Africa).
+
+  Power sign convention:
+  - active_power < 0 indicates charging (load on grid)
+  - active_power > 0 indicates discharging (generation to grid)
+  - charge_power and discharge_power are absolute (always >= 0)
+
+  When both charge_power and discharge_power are present they take precedence
+  over active_power sign-based inference.
+
+  The bess_dispatch conformance profile requires dispatch_mode and soc to be
+  present on every record. See spec/bess-transforms.md (SEP-026).
