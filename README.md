@@ -1,10 +1,42 @@
-# ODS-E: Open Data Schema for Energy
+<p align="center">
+  <img src="assets/odse.png" width="180" alt="ODS-E Logo" />
+</p>
 
-[![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/AsobaCloud/odse/actions/workflows/ci.yml/badge.svg)](https://github.com/AsobaCloud/odse/actions/workflows/ci.yml)
+<h1 align="center">ODS-E — Open Data Schema for Energy</h1>
 
-ODS-E is an open specification for interoperable energy asset data across generation, consumption, and net metering.
+<p align="center">
+  <strong>An open specification for interoperable energy asset data across generation, consumption, and net metering.</strong>
+</p>
+
+<p align="center">
+  <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+    <img src="https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg" alt="License: CC BY-SA 4.0">
+  </a>
+  <a href="https://opensource.org/licenses/Apache-2.0">
+    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0">
+  </a>
+  <a href="https://github.com/AsobaCloud/odse/actions/workflows/ci.yml">
+    <img src="https://github.com/AsobaCloud/odse/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/AsobaCloud/odse/releases">
+    <img src="https://img.shields.io/github/v/release/AsobaCloud/odse?style=flat" alt="Release">
+  </a>
+  <a href="https://github.com/AsobaCloud/odse/commits/main">
+    <img src="https://img.shields.io/github/last-commit/AsobaCloud/odse/main" alt="Last Commit">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#start-here">Start Here</a> •
+  <a href="#repository-map">Repository Map</a> •
+  <a href="#for-implementers">For Implementers</a> •
+  <a href="#project">Project</a> •
+  <a href="#license">License</a>
+</p>
+
+---
+
+ODS-E is an open specification for interoperable energy asset data across generation, consumption, and net metering. It ships with versioned schemas, vendor transforms, a Python reference runtime, and integration guides for inverters, industrial protocols, SCADA, and utility data portals.
 
 ## Start Here
 
@@ -29,12 +61,14 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Transform harness usage](tools/transform_harness.py)
 
 ### Integration Guides
+
 - [Inverter API access setup](spec/inverter-api-access.md)
 - [Industrial Protocols (MQTT, OPC-UA)](spec/industrial-connectors.md)
 - [SCADA (IEC 61850) Integration](spec/scada-integration.md)
 - [Eskom Ingest (AMR, Data Portal)](spec/eskom-ingest.md)
 
 ### Modeling & Markets
+
 - [ComStock/ResStock integration](spec/comstock-integration.md)
 - [Municipal emissions modeling guide](spec/municipal-emissions-modeling.md)
 - [Market context extensions (settlement, tariff, topology)](spec/market-context.md)
