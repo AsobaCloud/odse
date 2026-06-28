@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "timestamp": "2026-06-27T10:00:00+02:00",
+      "values": {
+        "JBAY.ActivePower": 1800.0,
+        "JBAY.ActiveEnergy": 300.0,
+        "JBAY.Status": 1,
+        "JBAY.Temperature": 45.2,
+        "JBAY.Voltage": 400.0,
+        "JBAY.Current": 12.5,
+        "JBAY.Frequency": 50.0,
+        "JBAY.ReactivePower": 300.0,
+        "JBAY.PowerFactor": 0.98
+      }
+    },
+    {
+      "timestamp": "2026-06-27T10:10:00+02:00",
+      "values": {
+        "JBAY.ActivePower": 0.0,
+        "JBAY.ActiveEnergy": 0.0,
+        "JBAY.Status": 2,
+        "JBAY.Temperature": 38.0,
+        "JBAY.Voltage": 400.0,
+        "JBAY.Current": 0.0,
+        "JBAY.Frequency": 50.01,
+        "JBAY.ReactivePower": 0.0,
+        "JBAY.PowerFactor": 1.0
+      }
+    },
+    {
+      "timestamp": "2026-06-27T10:20:00+02:00",
+      "values": {
+        "JBAY.ActivePower": 0.0,
+        "JBAY.ActiveEnergy": 0.0,
+        "JBAY.Status": 4,
+        "JBAY.Temperature": 35.0,
+        "JBAY.Voltage": 0.0,
+        "JBAY.Current": 0.0,
+        "JBAY.Frequency": 0.0,
+        "JBAY.ReactivePower": 0.0,
+        "JBAY.PowerFactor": 0.0
+      }
+    }
+  ]
+}

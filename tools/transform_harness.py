@@ -34,6 +34,7 @@ CANONICAL_OEMS = [
     "vestas",
     "siemens_gamesa",
     "nordex",
+    "terraco",
 ]
 
 FIXTURES: Dict[str, str] = {
@@ -140,6 +141,24 @@ FIXTURES: Dict[str, str] = {
         "timestamp,active_power_kw,wind_speed,rotor_speed,blade_angle,generator_temp,transformer_temp,turbine_status\n"
         "2026-02-09 12:00:00,1500.0,7.8,12.5,5.0,62.0,45.0,running\n"
     ),
+    "terraco": json.dumps({
+        "data": [
+            {
+                "timestamp": "2026-02-09 12:00:00",
+                "values": {
+                    "JBAY.ActivePower": 1800.0,
+                    "JBAY.ActiveEnergy": 300.0,
+                    "JBAY.Status": 1,
+                    "JBAY.Temperature": 45.2,
+                    "JBAY.Voltage": 400.0,
+                    "JBAY.Current": 12.5,
+                    "JBAY.Frequency": 50.0,
+                    "JBAY.ReactivePower": 300.0,
+                    "JBAY.PowerFactor": 0.98,
+                },
+            }
+        ]
+    }),
 }
 
 

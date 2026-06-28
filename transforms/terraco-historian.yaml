@@ -1,0 +1,170 @@
+# Terraco SCADA Historian to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: Terraco SCADA historian REST API / CSV export
+# SEP: SEP-021
+
+transform:
+  name: terraco-historian
+  version: "1.0"
+  oem: Terraco
+  description: Transform Terraco SCADA historian data (JSON REST API or CSV export) to ODS-E format
+  sep: SEP-021
+
+input_schema:
+  formats:
+    - json
+    - csv
+  source: Terraco SCADA historian REST API or CSV export
+  tag_naming: "{AssetName}.{TagName}"
+  description: |
+    Terraco uses a dot-separated tag naming convention where the prefix is the
+    asset name and the suffix is the measurement name. The transformer matches
+    tag suffixes (case-insensitive) to ODS-E fields.
+
+  json_mode:
+    structure: |
+      {
+        "data": [
+          {
+            "timestamp": "2026-06-27T10:00:00+02:00",
+            "values": {
+              "JBAY.ActivePower": 1800.0,
+              "JBAY.ActiveEnergy": 300.0,
+              "JBAY.Status": 1,
+              ...
+            }
+          }
+        ]
+      }
+    description: |
+      REST API responses contain a "data" array of timestamped samples. Each
+      sample has a "timestamp" field and a "values" dict mapping tag names to
+      values. Bare lists of samples (without "data" wrapper) and single sample
+      dicts are also accepted.
+
+  csv_mode:
+    delimiter: ","
+    header: true
+    columns:
+      - timestamp: datetime
+      - "{AssetName}.ActivePower": float    # kW
+      - "{AssetName}.ActiveEnergy": float   # kWh
+      - "{AssetName}.Status": integer       # state code
+      - "{AssetName}.Temperature": float    # °C
+      - "{AssetName}.Voltage": float        # V
+      - "{AssetName}.Current": float        # A
+      - "{AssetName}.Frequency": float      # Hz
+      - "{AssetName}.ReactivePower": float  # kVAr
+      - "{AssetName}.PowerFactor": float    # 0-1
+
+output_mapping:
+  from_terraco_tags:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+    kWh:
+      source: input.values[].ActiveEnergy
+      fallback:
+        function: power_times_interval
+        inputs: [input.values[].ActivePower, interval_hours]
+      description: Energy from ActiveEnergy tag, or calculated from power × interval
+    kW:
+      source: input.values[].ActivePower
+    error_type:
+      function: map_state_code
+      inputs:
+        - input.values[].Status
+    error_code:
+      source: input.values[].Status
+      transform: to_string
+    temperature:
+      source: input.values[].Temperature
+    voltage_ac:
+      source: input.values[].Voltage
+    current_ac:
+      source: input.values[].Current
+    frequency:
+      source: input.values[].Frequency
+    kVAr:
+      source: input.values[].ReactivePower
+    PF:
+      source: input.values[].PowerFactor
+      bounds: [0, 1]
+
+tag_suffix_mapping:
+  description: |
+    Tag suffixes are matched case-insensitively after stripping the asset
+    prefix. First match wins per ODS-E field.
+  mappings:
+    - suffixes: [ActivePower, kW]
+      odse_field: kW
+    - suffixes: [ActiveEnergy, kWh]
+      odse_field: kWh
+    - suffixes: [Status, State]
+      odse_field: error_type
+    - suffixes: [Temperature]
+      odse_field: temperature
+    - suffixes: [Voltage]
+      odse_field: voltage_ac
+    - suffixes: [Current]
+      odse_field: current_ac
+    - suffixes: [Frequency]
+      odse_field: frequency
+    - suffixes: [ReactivePower]
+      odse_field: kVAr
+    - suffixes: [PowerFactor]
+      odse_field: PF
+
+status_mapping:
+  state_code_to_error_type:
+    0: offline
+    1: normal
+    2: standby
+    3: warning
+    4: fault
+    5: warning  # maintenance
+  unknown_code: unknown
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval (fallback when ActiveEnergy absent)
+    formula: "max(power_kw * interval_hours, 0.0)"
+
+validation:
+  physical_bounds:
+    PF:
+      min: 0
+      max: 1
+    frequency:
+      min: 45
+      max: 65
+    voltage_ac:
+      min: 0
+      max: 1000
+  temporal:
+    expected_intervals: ["10min", "5min", "1min", "1hour"]
+    max_gap: "24h"
+    description: Terraco SCADA historian data typically arrives at 10-minute intervals
+
+notes: |
+  Terraco is the SCADA historian deployed across multiple South African IPP
+  portfolios including Globeleq. It serves as the primary data source for
+  utility-scale generation monitoring.
+
+  The transformer auto-detects JSON vs CSV input. JSON is attempted first;
+  if parsing fails, CSV is assumed. This allows the same source key to handle
+  both REST API responses and CSV exports without configuration.
+
+  Terraco uses a dot-separated tag naming convention: {AssetName}.{TagName}.
+  The transformer strips the asset prefix and matches the tag suffix
+  case-insensitively. For example, "JBAY.ActivePower" and "SOLARPK.ActivePower"
+  both map to the ODS-E "kW" field.
+
+  The default interval_minutes is 10, matching the standard SCADA historian
+  10-minute reporting interval. When ActiveEnergy/kWh is present, it takes
+  precedence over power-based calculation.
+
+  State codes follow a common SCADA historian convention:
+  0=offline, 1=normal, 2=standby, 3=warning, 4=fault, 5=maintenance.
+  Maintenance (5) is mapped to "warning" since the asset is intentionally
+  offline for service but not in a fault condition.

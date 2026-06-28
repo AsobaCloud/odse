@@ -6,6 +6,9 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+### Added
+- Terraco SCADA historian transform (SEP-021): `TerracoTransformer` handling both JSON (REST API) and CSV (export) inputs, registered under source keys `terraco` and `terraco-historian`. Maps Terraco `{AssetName}.{TagName}` patterns to ODS-E fields with auto-detection of input format.
+
 ## [0.8.0] - 2026-06-27
 
 ### Added
