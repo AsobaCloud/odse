@@ -1,0 +1,104 @@
+# Nordex Control SCADA to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: Nordex Control SCADA CSV/JSON export
+# SEP: SEP-025
+
+transform:
+  name: nordex-control
+  version: "1.0"
+  oem: Nordex
+  description: Transform Nordex Control SCADA CSV export data to ODS-E format
+  sep: SEP-025
+
+input_schema:
+  format: csv
+  source: Nordex Control SCADA export
+  delimiter: ","
+  header: true
+  columns:
+    - timestamp: datetime              # local or ISO 8601
+    - active_power_kw: float           # kW (>= 0 when producing)
+    - wind_speed: float                # m/s
+    - rotor_speed: float               # RPM (>= 0)
+    - blade_angle: float               # degrees
+    - generator_temp: float            # °C
+    - transformer_temp: float          # °C
+    - turbine_status: string           # running, standby, paused, warning, error, offline, maintenance
+
+output_mapping:
+  from_scada_export:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+    kWh:
+      function: power_times_interval
+      inputs:
+        - input.active_power_kw
+        - interval_hours
+      description: Energy produced over the interval, floored at 0, in kWh
+    kW:
+      source: input.active_power_kw
+    wind_speed_ms:
+      source: input.wind_speed
+      minimum: 0
+    rotor_rpm:
+      source: input.rotor_speed
+      minimum: 0
+    blade_pitch_deg:
+      source: input.blade_angle
+    temperature:
+      source: input.generator_temp
+    error_type:
+      function: map_turbine_status
+      inputs:
+        - input.turbine_status
+    error_code:
+      source: input.turbine_status
+      transform: to_string
+
+status_mapping:
+  turbine_status_to_error_type:
+    running: normal
+    standby: standby
+    paused: standby
+    warning: warning
+    error: fault
+    offline: offline
+    maintenance: warning
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval
+    formula: "max(power_kw * interval_hours, 0.0)"
+
+validation:
+  physical_bounds:
+    wind_speed_ms:
+      min: 0
+      max: 100
+    rotor_rpm:
+      min: 0
+      max: 30
+  temporal:
+    expected_intervals: ["10min", "5min", "1min"]
+    max_gap: "24h"
+    description: Nordex SCADA telemetry typically arrives at 10-minute intervals
+
+conformance:
+  profile: wind_scada
+  required_fields: [wind_speed_ms]
+  description: Use the wind_scada conformance profile to validate wind turbine records
+
+notes: |
+  Nordex is one of the three dominant wind turbine OEMs in the African IPP
+  market. Nordex Control is the SCADA platform used for turbine monitoring
+  and CSV/JSON export of telemetry data.
+
+  The turbine_status string values map to ODS-E error types. "paused" is
+  mapped to "standby" as it represents an intentional temporary stop (e.g.,
+  waiting for wind to pick up), distinct from "standby" which is a manual
+  hold. "maintenance" is mapped to "warning" since the turbine is offline
+  for service but not in a fault condition.
+
+  The wind_scada conformance profile requires wind_speed_ms to be present on
+  every record. See spec/wind-transforms.md (SEP-025).

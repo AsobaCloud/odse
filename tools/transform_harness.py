@@ -31,6 +31,9 @@ CANONICAL_OEMS = [
     "solis",
     "solaxcloud",
     "higeco",
+    "vestas",
+    "siemens_gamesa",
+    "nordex",
 ]
 
 FIXTURES: Dict[str, str] = {
@@ -125,6 +128,18 @@ FIXTURES: Dict[str, str] = {
             "inverterStatus": "102",
         },
     }),
+    "vestas": (
+        "timestamp,active_power_kw,wind_speed,rotor_rpm,nacelle_position,yaw_error,blade_pitch,generator_temp,grid_frequency,turbine_state\n"
+        "2026-02-09 12:00:00,1800.0,9.5,14.2,270.5,2.1,4.5,65.3,50.02,2\n"
+    ),
+    "siemens_gamesa": (
+        "timestamp,active_power_kw,reactive_power_kvar,wind_speed_nacelle,wind_speed_metmast,rotor_speed,pitch_angle,generator_speed,bearing_temp,availability_status\n"
+        "2026-02-09 12:00:00,2100.0,300.0,8.7,8.5,13.5,3.2,1450.0,58.4,full\n"
+    ),
+    "nordex": (
+        "timestamp,active_power_kw,wind_speed,rotor_speed,blade_angle,generator_temp,transformer_temp,turbine_status\n"
+        "2026-02-09 12:00:00,1500.0,7.8,12.5,5.0,62.0,45.0,running\n"
+    ),
 }
 
 
