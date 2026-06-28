@@ -5,7 +5,7 @@ A Python library for validating and transforming energy asset data
 using the ODS-E specification.
 """
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"
 
 from .validator import (
     validate,

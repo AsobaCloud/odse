@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-06-28
+
+### Fixed
+- Logo image now uses absolute GitHub raw URL so it renders on PyPI (previously used relative path `assets/odse.png` which only worked on GitHub).
+
 ## [0.8.1] - 2026-06-28
 
 ### Added

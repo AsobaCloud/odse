@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/odse.png" width="180" alt="ODS-E Logo" />
+  <img src="https://raw.githubusercontent.com/AsobaCloud/odse/main/assets/odse.png" width="180" alt="ODS-E Logo" />
 </p>
 
 <h1 align="center">ODS-E — Open Data Schema for Energy</h1>
