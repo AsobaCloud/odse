@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-27
+
 ### Added
 - Wind turbine SCADA transforms (SEP-025): `VestasTransformer` (Vestas Online), `SiemensGamesaTransformer` (Siemens Gamesa Diagnostic System), and `NordexTransformer` (Nordex Control), registered under source keys `vestas`, `siemens_gamesa`, and `nordex`.
 - Four optional wind schema fields in `energy-timeseries.json`: `wind_speed_ms`, `rotor_rpm`, `blade_pitch_deg`, and `nacelle_direction_deg` (0–360).
