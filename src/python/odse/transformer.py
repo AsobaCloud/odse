@@ -90,6 +90,12 @@ def _get_transformer(source: str):
         "eskom_amr": EskomAMRTransformer(),
         "eskom-amr": EskomAMRTransformer(),
         "nrs049": EskomAMRTransformer(),
+        "sungrow_bess": SungrowBESSTransformer(),
+        "sungrow-bess": SungrowBESSTransformer(),
+        "powertitan": SungrowBESSTransformer(),
+        "byd_bess": BYDBESSTransformer(),
+        "byd-bess": BYDBESSTransformer(),
+        "byd": BYDBESSTransformer(),
         "csv": GenericCSVTransformer(),
         "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
@@ -1356,6 +1362,272 @@ class EskomAMRTransformer(BaseTransformer):
             
             records.append(record)
         
+        return records
+
+
+class SungrowBESSTransformer(BaseTransformer):
+    """Transform Sungrow PowerTitan BESS telemetry (iSolarCloud) to ODS-E.
+
+    Handles BESS-specific fields: state of charge, state of health, charge/
+    discharge energy, cell-level temperature and voltage, cycle count, and
+    dispatch mode. Input is an iSolarCloud device_telemetry-style JSON payload
+    whose ``data_points`` array contains BESS tags.
+    """
+
+    # run_mode -> dispatch_mode (Sungrow PowerTitan convention)
+    RUN_MODE_MAPPING = {
+        0: "standby",
+        1: "charging",
+        2: "discharging",
+        3: "balancing",
+    }
+
+    # status_code -> error_type (mirrors SungrowTransformer device mapping)
+    STATUS_MAPPING = {
+        0: "offline",
+        1: "standby",
+        2: "standby",
+        3: "normal",
+        4: "normal",
+        5: "warning",
+        6: "fault",
+        7: "fault",
+        8: "standby",
+        9: "warning",
+        10: "offline",
+        11: "standby",
+        12: "warning",
+        13: "critical",
+        14: "warning",
+        15: "fault",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 5) or 5) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        out: List[Dict[str, Any]] = []
+
+        if not isinstance(payload, dict):
+            return out
+
+        data_points = payload.get("data_points", [])
+        if not isinstance(data_points, list):
+            return out
+
+        for point in data_points:
+            if not isinstance(point, dict):
+                continue
+            ts = _to_iso8601(point.get("timestamp"), timezone=timezone)
+            if not ts:
+                continue
+
+            charge_power_w = _to_float(point.get("charge_power"))
+            discharge_power_w = _to_float(point.get("discharge_power"))
+            active_power_w = _to_float(point.get("active_power"))
+            status_code = _to_int(point.get("status_code"))
+            fault_code = point.get("fault_code")
+            run_mode = _to_int(point.get("run_mode"))
+
+            # Prefer explicit charge/discharge power; fall back to active_power sign.
+            if charge_power_w is not None and discharge_power_w is not None:
+                charge_kwh = max((charge_power_w / 1000.0) * interval_hours, 0.0)
+                discharge_kwh = max((discharge_power_w / 1000.0) * interval_hours, 0.0)
+            elif active_power_w is not None:
+                if active_power_w < 0:
+                    charge_kwh = max((-active_power_w / 1000.0) * interval_hours, 0.0)
+                    discharge_kwh = 0.0
+                else:
+                    charge_kwh = 0.0
+                    discharge_kwh = max((active_power_w / 1000.0) * interval_hours, 0.0)
+            else:
+                charge_kwh = 0.0
+                discharge_kwh = 0.0
+
+            # Net kWh for the base record: discharge - charge (generation positive).
+            net_kwh = max(discharge_kwh - charge_kwh, 0.0)
+
+            rec = _base_record(
+                timestamp=ts,
+                kwh=net_kwh,
+                error_type=self.STATUS_MAPPING.get(status_code or -1, "unknown"),
+                error_code=fault_code,
+                asset_id=asset_id,
+            )
+
+            # BESS fields
+            soc = _to_float(point.get("soc"))
+            if soc is not None:
+                rec["soc"] = max(0.0, min(100.0, soc))
+            soh = _to_float(point.get("soh"))
+            if soh is not None:
+                rec["soh"] = max(0.0, min(100.0, soh))
+            rec["charge_kWh"] = charge_kwh
+            rec["discharge_kWh"] = discharge_kwh
+
+            cycle_count = _to_float(point.get("cycle_count"))
+            if cycle_count is not None:
+                rec["cycle_count"] = max(0.0, cycle_count)
+
+            cell_temp_min = _to_float(point.get("min_cell_temp"))
+            if cell_temp_min is not None:
+                rec["cell_temp_min_c"] = cell_temp_min
+            cell_temp_max = _to_float(point.get("max_cell_temp"))
+            if cell_temp_max is not None:
+                rec["cell_temp_max_c"] = cell_temp_max
+
+            cell_v_min = _to_float(point.get("min_cell_voltage"))
+            if cell_v_min is not None:
+                rec["cell_voltage_min_v"] = max(0.0, cell_v_min)
+            cell_v_max = _to_float(point.get("max_cell_voltage"))
+            if cell_v_max is not None:
+                rec["cell_voltage_max_v"] = max(0.0, cell_v_max)
+
+            dispatch_mode = self.RUN_MODE_MAPPING.get(run_mode or -1)
+            if dispatch_mode is None:
+                # Infer from power flow when run_mode is absent.
+                if charge_kwh > 0 and discharge_kwh == 0:
+                    dispatch_mode = "charging"
+                elif discharge_kwh > 0 and charge_kwh == 0:
+                    dispatch_mode = "discharging"
+                else:
+                    dispatch_mode = "standby"
+            rec["dispatch_mode"] = dispatch_mode
+
+            # Electrical parameters (optional, when present)
+            q_var = _to_float(point.get("reactive_power"))
+            if q_var is not None:
+                rec["kVAr"] = q_var / 1000.0
+            s_va = _to_float(point.get("apparent_power"))
+            if s_va is not None:
+                rec["kVA"] = s_va / 1000.0
+            pf = _to_float(point.get("power_factor"))
+            if pf is not None:
+                rec["PF"] = max(0.0, min(1.0, pf))
+            freq = _to_float(point.get("frequency"))
+            if freq is not None:
+                rec["frequency"] = freq
+
+            if active_power_w is not None:
+                rec["kW"] = active_power_w / 1000.0
+
+            if status_code is not None:
+                rec["oem_error_code"] = str(status_code)
+
+            out.append(rec)
+
+        return out
+
+
+class BYDBESSTransformer(BaseTransformer):
+    """Transform BYD BatteryBox / BMS CSV export to ODS-E.
+
+    Expected CSV columns: timestamp, soc, soh, charge_power_kw,
+    discharge_power_kw, cycle_count, cell_temp_min, cell_temp_max,
+    cell_voltage_min, cell_voltage_max, bms_status, dispatch_mode.
+    """
+
+    # bms_status -> error_type
+    BMS_STATUS_MAPPING = {
+        0: "normal",
+        1: "standby",
+        2: "warning",
+        3: "fault",
+        4: "offline",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone", "Africa/Johannesburg")
+        interval_hours = (kwargs.get("interval_minutes", 15) or 15) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        records: List[Dict[str, Any]] = []
+
+        for row in rows:
+            ts_raw = _first_value(row, ["timestamp", "Timestamp", "Time", "datetime"])
+            iso_ts = _to_iso8601(ts_raw, timezone=timezone)
+            if not iso_ts:
+                continue
+
+            charge_kw = _to_float(_first_value(row, ["charge_power_kw", "charge_power"]))
+            discharge_kw = _to_float(_first_value(row, ["discharge_power_kw", "discharge_power"]))
+
+            charge_kwh = max((charge_kw or 0.0) * interval_hours, 0.0)
+            discharge_kwh = max((discharge_kw or 0.0) * interval_hours, 0.0)
+            net_kwh = max(discharge_kwh - charge_kwh, 0.0)
+
+            bms_status = _to_int(_first_value(row, ["bms_status", "status", "Status"]))
+            error_type = self.BMS_STATUS_MAPPING.get(
+                bms_status if bms_status is not None else -1, "unknown",
+            )
+
+            rec = _base_record(
+                timestamp=iso_ts,
+                kwh=net_kwh,
+                error_type=error_type,
+                error_code=bms_status,
+                asset_id=asset_id,
+            )
+
+            soc = _to_float(_first_value(row, ["soc", "SOC"]))
+            if soc is not None:
+                rec["soc"] = max(0.0, min(100.0, soc))
+            soh = _to_float(_first_value(row, ["soh", "SOH"]))
+            if soh is not None:
+                rec["soh"] = max(0.0, min(100.0, soh))
+
+            rec["charge_kWh"] = charge_kwh
+            rec["discharge_kWh"] = discharge_kwh
+
+            cycle_count = _to_float(_first_value(row, ["cycle_count", "cycles"]))
+            if cycle_count is not None:
+                rec["cycle_count"] = max(0.0, cycle_count)
+
+            cell_temp_min = _to_float(_first_value(row, ["cell_temp_min", "min_cell_temp"]))
+            if cell_temp_min is not None:
+                rec["cell_temp_min_c"] = cell_temp_min
+            cell_temp_max = _to_float(_first_value(row, ["cell_temp_max", "max_cell_temp"]))
+            if cell_temp_max is not None:
+                rec["cell_temp_max_c"] = cell_temp_max
+
+            cell_v_min = _to_float(_first_value(row, ["cell_voltage_min", "min_cell_voltage"]))
+            if cell_v_min is not None:
+                rec["cell_voltage_min_v"] = max(0.0, cell_v_min)
+            cell_v_max = _to_float(_first_value(row, ["cell_voltage_max", "max_cell_voltage"]))
+            if cell_v_max is not None:
+                rec["cell_voltage_max_v"] = max(0.0, cell_v_max)
+
+            dispatch_mode_raw = _first_value(row, ["dispatch_mode", "mode"])
+            if dispatch_mode_raw is not None:
+                mode = str(dispatch_mode_raw).strip().lower()
+                if mode in ("charging", "discharging", "standby", "balancing"):
+                    rec["dispatch_mode"] = mode
+                else:
+                    # Infer from power flow.
+                    if charge_kwh > 0 and discharge_kwh == 0:
+                        rec["dispatch_mode"] = "charging"
+                    elif discharge_kwh > 0 and charge_kwh == 0:
+                        rec["dispatch_mode"] = "discharging"
+                    else:
+                        rec["dispatch_mode"] = "standby"
+            else:
+                if charge_kwh > 0 and discharge_kwh == 0:
+                    rec["dispatch_mode"] = "charging"
+                elif discharge_kwh > 0 and charge_kwh == 0:
+                    rec["dispatch_mode"] = "discharging"
+                else:
+                    rec["dispatch_mode"] = "standby"
+
+            if charge_kw is not None:
+                rec["kW"] = -charge_kw
+            elif discharge_kw is not None:
+                rec["kW"] = discharge_kw
+
+            records.append(rec)
+
         return records
 
 

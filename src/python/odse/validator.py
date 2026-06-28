@@ -81,6 +81,14 @@ PROFILES = {
         ],
         "field_constraints": {},
     },
+    "bess_dispatch": {
+        "required_fields": ["dispatch_mode", "soc"],
+        "field_constraints": {
+            "dispatch_mode": [
+                "charging", "discharging", "standby", "balancing",
+            ],
+        },
+    },
 }
 
 
@@ -460,6 +468,30 @@ def _validate_schema(data: dict) -> List[ValidationError]:
             message="SOH must be <= 100",
             code="OUT_OF_BOUNDS",
         ))
+
+    # --- BESS dispatch (SEP-026) ---
+    _check_optional_type(data, "charge_kWh", "number", errors, "number")
+    _check_optional_minimum(data, "charge_kWh", 0, errors)
+
+    _check_optional_type(data, "discharge_kWh", "number", errors, "number")
+    _check_optional_minimum(data, "discharge_kWh", 0, errors)
+
+    _check_optional_type(data, "cycle_count", "number", errors, "number")
+    _check_optional_minimum(data, "cycle_count", 0, errors)
+
+    _check_optional_type(data, "cell_temp_min_c", "number", errors, "number")
+    _check_optional_type(data, "cell_temp_max_c", "number", errors, "number")
+
+    _check_optional_type(data, "cell_voltage_min_v", "number", errors, "number")
+    _check_optional_minimum(data, "cell_voltage_min_v", 0, errors)
+
+    _check_optional_type(data, "cell_voltage_max_v", "number", errors, "number")
+    _check_optional_minimum(data, "cell_voltage_max_v", 0, errors)
+
+    _check_optional_enum(
+        data, "dispatch_mode",
+        ["charging", "discharging", "standby", "balancing"], errors,
+    )
 
     return errors
 

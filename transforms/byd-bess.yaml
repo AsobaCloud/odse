@@ -1,0 +1,168 @@
+# BYD BatteryBox / BMS Export to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: BYD BatteryBox BMS export (CSV)
+# SEP: SEP-026
+
+transform:
+  name: byd-bess
+  version: "1.0"
+  oem: BYD
+  description: Transform BYD BatteryBox / BMS CSV export data to ODS-E format
+  sep: SEP-026
+
+input_schema:
+  format: csv
+  source: BYD BatteryBox BMS / BYD B-Box portal export
+  delimiter: ","
+  header: true
+  columns:
+    - timestamp: datetime          # local or ISO 8601
+    - soc: float                   # 0-100
+    - soh: float                   # 0-100
+    - charge_power_kw: float       # kW (>= 0)
+    - discharge_power_kw: float    # kW (>= 0)
+    - cycle_count: float           # cumulative cycles
+    - cell_temp_min: float         # °C
+    - cell_temp_max: float         # °C
+    - cell_voltage_min: float      # V
+    - cell_voltage_max: float      # V
+    - bms_status: integer          # 0=normal, 1=standby, 2=warning, 3=fault, 4=offline
+    - dispatch_mode: string        # charging, discharging, standby, balancing
+
+output_mapping:
+  from_bms_export:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+      default_timezone: Africa/Johannesburg
+    kWh:
+      function: net_discharge_kwh
+      inputs:
+        - input.charge_power_kw
+        - input.discharge_power_kw
+        - interval_hours
+      description: Net energy (discharge - charge), floored at 0, in kWh
+    charge_kWh:
+      function: power_times_interval
+      inputs:
+        - input.charge_power_kw
+        - interval_hours
+    discharge_kWh:
+      function: power_times_interval
+      inputs:
+        - input.discharge_power_kw
+        - interval_hours
+    soc:
+      source: input.soc
+      bounds: [0, 100]
+    soh:
+      source: input.soh
+      bounds: [0, 100]
+    cycle_count:
+      source: input.cycle_count
+      minimum: 0
+    cell_temp_min_c:
+      source: input.cell_temp_min
+    cell_temp_max_c:
+      source: input.cell_temp_max
+    cell_voltage_min_v:
+      source: input.cell_voltage_min
+      minimum: 0
+    cell_voltage_max_v:
+      source: input.cell_voltage_max
+      minimum: 0
+    dispatch_mode:
+      source: input.dispatch_mode
+      fallback: infer_from_power
+    kW:
+      function: signed_power
+      inputs:
+        - input.charge_power_kw
+        - input.discharge_power_kw
+      description: Negative when charging, positive when discharging
+    error_type:
+      function: map_bms_status
+      inputs:
+        - input.bms_status
+    error_code:
+      source: input.bms_status
+      transform: to_string
+
+status_mapping:
+  bms_status_to_error_type:
+    0: normal
+    1: standby
+    2: warning
+    3: fault
+    4: offline
+
+  dispatch_mode_inference:
+    description: Used when dispatch_mode column is absent or invalid
+    rules:
+      - if: "charge_kWh > 0 and discharge_kWh == 0"
+        then: charging
+      - if: "discharge_kWh > 0 and charge_kWh == 0"
+        then: discharging
+      - else: standby
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval
+    formula: "max(power_kw * interval_hours, 0.0)"
+  net_discharge_kwh:
+    description: Net energy as discharge minus charge, floored at 0
+    formula: "max(discharge_kwh - charge_kwh, 0.0)"
+  signed_power:
+    description: Signed power for kW field
+    formula: "-charge_power_kw if charge_power_kw > 0 else discharge_power_kw"
+
+validation:
+  physical_bounds:
+    soc:
+      min: 0
+      max: 100
+    soh:
+      min: 0
+      max: 100
+    charge_kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    discharge_kWh:
+      min: 0
+      max_formula: "capacity_kw * interval_hours * 1.1"
+    cell_temp_min_c:
+      min: -40
+      max: 80
+    cell_temp_max_c:
+      min: -40
+      max: 80
+    cell_voltage_min_v:
+      min: 0
+      max: 5
+    cell_voltage_max_v:
+      min: 0
+      max: 5
+  temporal:
+    expected_intervals: ["15min", "5min", "1hour"]
+    max_gap: "24h"
+    description: BMS export should arrive at regular intervals with no gaps exceeding 24 hours
+
+conformance:
+  profile: bess_dispatch
+  required_fields: [dispatch_mode, soc]
+  description: Use the bess_dispatch conformance profile to validate dispatch records
+
+notes: |
+  BYD is a dominant BESS supplier in the South African market alongside Sungrow.
+  The BYD BatteryBox and B-Box product lines expose BMS data via CSV export from
+  the BYD portal or local BMS interface.
+
+  The CSV export uses power in kilowatts (not watts), unlike the Sungrow iSolarCloud
+  API which reports power in watts. The transformer applies the interval_minutes
+  parameter (default 15) to compute charge_kWh and discharge_kWh.
+
+  When the dispatch_mode column is absent or contains an unrecognized value, the
+  transformer infers the mode from the charge/discharge power flow.
+
+  The bess_dispatch conformance profile requires dispatch_mode and soc to be
+  present on every record. See spec/bess-transforms.md (SEP-026).
