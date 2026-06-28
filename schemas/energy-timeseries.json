@@ -303,6 +303,26 @@
       "type": "string",
       "enum": ["charging", "discharging", "standby", "balancing"],
       "description": "Battery dispatch state for this interval."
+    },
+    "wind_speed_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Wind speed in meters per second."
+    },
+    "rotor_rpm": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Rotor revolutions per minute."
+    },
+    "blade_pitch_deg": {
+      "type": "number",
+      "description": "Blade pitch angle in degrees."
+    },
+    "nacelle_direction_deg": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 360,
+      "description": "Nacelle orientation in degrees (0-360, compass bearing)."
     }
   },
   "if": {

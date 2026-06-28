@@ -1,0 +1,118 @@
+# Vestas Online SCADA to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: Vestas Online SCADA CSV/JSON export
+# SEP: SEP-025
+
+transform:
+  name: vestas-online
+  version: "1.0"
+  oem: Vestas
+  description: Transform Vestas Online SCADA CSV export data to ODS-E format
+  sep: SEP-025
+
+input_schema:
+  format: csv
+  source: Vestas Online Business SCADA export
+  delimiter: ","
+  header: true
+  columns:
+    - timestamp: datetime              # local or ISO 8601
+    - active_power_kw: float           # kW (>= 0 when producing)
+    - wind_speed: float                # m/s
+    - rotor_rpm: float                 # RPM (>= 0)
+    - nacelle_position: float          # degrees (0-360 compass bearing)
+    - yaw_error: float                 # degrees
+    - blade_pitch: float               # degrees
+    - generator_temp: float            # °C
+    - grid_frequency: float            # Hz
+    - turbine_state: integer           # 0=offline, 1=standby, 2=normal, 3=warning, 4=fault, 5=maintenance
+
+output_mapping:
+  from_scada_export:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+    kWh:
+      function: power_times_interval
+      inputs:
+        - input.active_power_kw
+        - interval_hours
+      description: Energy produced over the interval, floored at 0, in kWh
+    kW:
+      source: input.active_power_kw
+    wind_speed_ms:
+      source: input.wind_speed
+      minimum: 0
+    rotor_rpm:
+      source: input.rotor_rpm
+      minimum: 0
+    nacelle_direction_deg:
+      source: input.nacelle_position
+      bounds: [0, 360]
+    blade_pitch_deg:
+      source: input.blade_pitch
+    temperature:
+      source: input.generator_temp
+    frequency:
+      source: input.grid_frequency
+    error_type:
+      function: map_turbine_state
+      inputs:
+        - input.turbine_state
+    error_code:
+      source: input.turbine_state
+      transform: to_string
+
+status_mapping:
+  turbine_state_to_error_type:
+    0: offline
+    1: standby
+    2: normal
+    3: warning
+    4: fault
+    5: warning  # maintenance
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval
+    formula: "max(power_kw * interval_hours, 0.0)"
+
+validation:
+  physical_bounds:
+    wind_speed_ms:
+      min: 0
+      max: 100
+    rotor_rpm:
+      min: 0
+      max: 30
+    nacelle_direction_deg:
+      min: 0
+      max: 360
+    grid_frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["10min", "5min", "1min"]
+    max_gap: "24h"
+    description: Vestas SCADA telemetry typically arrives at 10-minute intervals
+
+conformance:
+  profile: wind_scada
+  required_fields: [wind_speed_ms]
+  description: Use the wind_scada conformance profile to validate wind turbine records
+
+notes: |
+  Vestas is one of the three dominant wind turbine OEMs in the African IPP
+  market. Vestas Online Business is the SCADA portal used for fleet monitoring
+  and CSV/JSON export of turbine telemetry.
+
+  The turbine_state integer codes map to ODS-E error types as defined above.
+  State 5 (maintenance) is mapped to "warning" since the turbine is intentionally
+  offline for service but not in a fault condition.
+
+  The default interval_minutes is 10, matching the standard Vestas SCADA
+  10-minute reporting interval. Override with interval_minutes for higher
+  resolution data.
+
+  The wind_scada conformance profile requires wind_speed_ms to be present on
+  every record. See spec/wind-transforms.md (SEP-025).

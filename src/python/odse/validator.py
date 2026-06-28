@@ -89,6 +89,10 @@ PROFILES = {
             ],
         },
     },
+    "wind_scada": {
+        "required_fields": ["wind_speed_ms"],
+        "field_constraints": {},
+    },
 }
 
 
@@ -492,6 +496,24 @@ def _validate_schema(data: dict) -> List[ValidationError]:
         data, "dispatch_mode",
         ["charging", "discharging", "standby", "balancing"], errors,
     )
+
+    # --- Wind SCADA (SEP-025) ---
+    _check_optional_type(data, "wind_speed_ms", "number", errors, "number")
+    _check_optional_minimum(data, "wind_speed_ms", 0, errors)
+
+    _check_optional_type(data, "rotor_rpm", "number", errors, "number")
+    _check_optional_minimum(data, "rotor_rpm", 0, errors)
+
+    _check_optional_type(data, "blade_pitch_deg", "number", errors, "number")
+
+    _check_optional_type(data, "nacelle_direction_deg", "number", errors, "number")
+    _check_optional_minimum(data, "nacelle_direction_deg", 0, errors)
+    if "nacelle_direction_deg" in data and isinstance(data["nacelle_direction_deg"], (int, float)) and data["nacelle_direction_deg"] > 360:
+        errors.append(ValidationError(
+            path="$.nacelle_direction_deg",
+            message="nacelle_direction_deg must be <= 360",
+            code="OUT_OF_BOUNDS",
+        ))
 
     return errors
 

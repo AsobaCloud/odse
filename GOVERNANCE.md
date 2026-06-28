@@ -120,6 +120,7 @@ SEP numbers are assigned sequentially and never reused. Current allocations:
 - SEP-001: Runtime validator parity for SA trading schema fields.
 - SEP-002: SA trading conformance profiles.
 - SEP-003: Reference enrichment contract.
+- SEP-025: Wind turbine SCADA transforms (Vestas, Siemens Gamesa, Nordex) and wind schema fields.
 - SEP-026: BESS transforms (Sungrow PowerTitan, BYD) and dispatch schema fields.
 
 ## Labels and Workflow

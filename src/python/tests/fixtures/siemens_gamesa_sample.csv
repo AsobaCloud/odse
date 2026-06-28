@@ -1,0 +1,4 @@
+timestamp,active_power_kw,reactive_power_kvar,wind_speed_nacelle,wind_speed_metmast,rotor_speed,pitch_angle,generator_speed,bearing_temp,availability_status
+2026-06-27T10:00:00Z,2100.0,300.0,8.7,8.5,13.5,3.2,1450.0,58.4,full
+2026-06-27T10:10:00Z,800.0,150.0,5.2,5.0,9.0,12.0,980.0,52.0,limited
+2026-06-27T10:20:00Z,0.0,,,,0.0,90.0,0.0,40.0,offline

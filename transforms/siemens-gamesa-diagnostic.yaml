@@ -1,0 +1,120 @@
+# Siemens Gamesa Diagnostic System SCADA to ODS-E Transform Specification
+# License: CC-BY-SA 4.0
+# Source: Siemens Gamesa Diagnostic System SCADA CSV/JSON export
+# SEP: SEP-025
+
+transform:
+  name: siemens-gamesa-diagnostic
+  version: "1.0"
+  oem: Siemens Gamesa
+  description: Transform Siemens Gamesa Diagnostic System SCADA CSV export data to ODS-E format
+  sep: SEP-025
+
+input_schema:
+  format: csv
+  source: Siemens Gamesa Diagnostic System SCADA export
+  delimiter: ","
+  header: true
+  columns:
+    - timestamp: datetime              # local or ISO 8601
+    - active_power_kw: float           # kW (>= 0 when producing)
+    - reactive_power_kvar: float       # kVAr
+    - wind_speed_nacelle: float        # m/s (nacelle-mounted anemometer)
+    - wind_speed_metmast: float        # m/s (met mast anemometer, fallback)
+    - rotor_speed: float               # RPM (>= 0)
+    - pitch_angle: float               # degrees
+    - generator_speed: float           # RPM
+    - bearing_temp: float              # °C
+    - availability_status: string      # full, limited, standstill, error, offline, maintenance
+
+output_mapping:
+  from_scada_export:
+    timestamp:
+      source: input.timestamp
+      transform: to_iso8601
+    kWh:
+      function: power_times_interval
+      inputs:
+        - input.active_power_kw
+        - interval_hours
+      description: Energy produced over the interval, floored at 0, in kWh
+    kW:
+      source: input.active_power_kw
+    kVAr:
+      source: input.reactive_power_kvar
+    wind_speed_ms:
+      function: first_available
+      inputs:
+        - input.wind_speed_nacelle
+        - input.wind_speed_metmast
+      minimum: 0
+      description: Prefers nacelle anemometer; falls back to met mast
+    rotor_rpm:
+      source: input.rotor_speed
+      minimum: 0
+    blade_pitch_deg:
+      source: input.pitch_angle
+    temperature:
+      source: input.bearing_temp
+    error_type:
+      function: map_availability_status
+      inputs:
+        - input.availability_status
+    error_code:
+      source: input.availability_status
+      transform: to_string
+
+status_mapping:
+  availability_status_to_error_type:
+    full: normal
+    limited: warning
+    standstill: standby
+    error: fault
+    offline: offline
+    maintenance: warning
+
+calculations:
+  power_times_interval:
+    description: Energy from power over the interval
+    formula: "max(power_kw * interval_hours, 0.0)"
+  first_available:
+    description: Use the first non-null input value
+    formula: "wind_speed_nacelle ?? wind_speed_metmast"
+
+validation:
+  physical_bounds:
+    wind_speed_ms:
+      min: 0
+      max: 100
+    rotor_rpm:
+      min: 0
+      max: 30
+    grid_frequency:
+      min: 45
+      max: 65
+  temporal:
+    expected_intervals: ["10min", "5min", "1min"]
+    max_gap: "24h"
+    description: Siemens Gamesa SCADA telemetry typically arrives at 10-minute intervals
+
+conformance:
+  profile: wind_scada
+  required_fields: [wind_speed_ms]
+  description: Use the wind_scada conformance profile to validate wind turbine records
+
+notes: |
+  Siemens Gamesa (SGRE) is one of the three dominant wind turbine OEMs in the
+  African IPP market. The Siemens Gamesa Diagnostic System is the SCADA platform
+  used for remote monitoring and CSV/JSON export of turbine telemetry.
+
+  The availability_status string values map to ODS-E error types. "limited"
+  indicates the turbine is running at reduced capacity (warning), while
+  "standstill" indicates an intentional stop (standby).
+
+  Wind speed is measured at two locations: the nacelle-mounted anemometer
+  (wind_speed_nacelle) and the met mast (wind_speed_metmast). The transformer
+  prefers the nacelle reading and falls back to the met mast when the nacelle
+  value is absent.
+
+  The wind_scada conformance profile requires wind_speed_ms to be present on
+  every record. See spec/wind-transforms.md (SEP-025).

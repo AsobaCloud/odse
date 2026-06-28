@@ -7,6 +7,11 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 ## [Unreleased]
 
 ### Added
+- Wind turbine SCADA transforms (SEP-025): `VestasTransformer` (Vestas Online), `SiemensGamesaTransformer` (Siemens Gamesa Diagnostic System), and `NordexTransformer` (Nordex Control), registered under source keys `vestas`, `siemens_gamesa`, and `nordex`.
+- Four optional wind schema fields in `energy-timeseries.json`: `wind_speed_ms`, `rotor_rpm`, `blade_pitch_deg`, and `nacelle_direction_deg` (0–360).
+- `wind_scada` conformance profile requiring `wind_speed_ms`.
+- Transform specifications `transforms/vestas-online.yaml`, `transforms/siemens-gamesa-diagnostic.yaml`, and `transforms/nordex-control.yaml`.
+- SEP-025 spec document `spec/wind-transforms.md`.
 - BESS transforms (SEP-026): `SungrowBESSTransformer` (Sungrow PowerTitan via iSolarCloud) and `BYDBESSTransformer` (BYD BatteryBox / BMS CSV export), registered under source keys `sungrow_bess` and `byd_bess`.
 - Eight optional BESS schema fields in `energy-timeseries.json`: `charge_kWh`, `discharge_kWh`, `cycle_count`, `cell_temp_min_c`, `cell_temp_max_c`, `cell_voltage_min_v`, `cell_voltage_max_v`, and `dispatch_mode` (enum: charging/discharging/standby/balancing).
 - `bess_dispatch` conformance profile requiring `dispatch_mode` and `soc`.

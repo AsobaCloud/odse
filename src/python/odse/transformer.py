@@ -96,6 +96,13 @@ def _get_transformer(source: str):
         "byd_bess": BYDBESSTransformer(),
         "byd-bess": BYDBESSTransformer(),
         "byd": BYDBESSTransformer(),
+        "vestas": VestasTransformer(),
+        "vestas-online": VestasTransformer(),
+        "siemens_gamesa": SiemensGamesaTransformer(),
+        "siemens-gamesa": SiemensGamesaTransformer(),
+        "sgre": SiemensGamesaTransformer(),
+        "nordex": NordexTransformer(),
+        "nordex-control": NordexTransformer(),
         "csv": GenericCSVTransformer(),
         "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
@@ -1625,6 +1632,254 @@ class BYDBESSTransformer(BaseTransformer):
                 rec["kW"] = -charge_kw
             elif discharge_kw is not None:
                 rec["kW"] = discharge_kw
+
+            records.append(rec)
+
+        return records
+
+
+class VestasTransformer(BaseTransformer):
+    """Transform Vestas Online SCADA CSV export to ODS-E.
+
+    Expected CSV columns: timestamp, active_power_kw, wind_speed,
+    rotor_rpm, nacelle_position, yaw_error, blade_pitch,
+    generator_temp, grid_frequency, turbine_state.
+    """
+
+    # turbine_state (integer) -> error_type
+    TURBINE_STATE_MAPPING = {
+        0: "offline",
+        1: "standby",
+        2: "normal",
+        3: "warning",
+        4: "fault",
+        5: "warning",  # maintenance
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 10) or 10) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        records: List[Dict[str, Any]] = []
+        for row in rows:
+            ts_raw = _first_value(row, ["timestamp", "Timestamp", "Time", "datetime"])
+            iso_ts = _to_iso8601(ts_raw, timezone=timezone)
+            if not iso_ts:
+                continue
+
+            power_kw = _to_float(
+                _first_value(row, ["active_power_kw", "active_power", "power_kw", "Power"])
+            )
+            kwh = max((power_kw or 0.0) * interval_hours, 0.0)
+
+            turbine_state = _to_int(
+                _first_value(row, ["turbine_state", "state", "status", "Status"])
+            )
+            error_type = self.TURBINE_STATE_MAPPING.get(
+                turbine_state if turbine_state is not None else -1, "unknown",
+            )
+
+            rec = _base_record(
+                timestamp=iso_ts,
+                kwh=kwh,
+                error_type=error_type,
+                error_code=turbine_state,
+                asset_id=asset_id,
+            )
+
+            if power_kw is not None:
+                rec["kW"] = power_kw
+
+            wind_speed = _to_float(_first_value(row, ["wind_speed", "WindSpeed", "wind_speed_ms"]))
+            if wind_speed is not None:
+                rec["wind_speed_ms"] = max(0.0, wind_speed)
+
+            rotor_rpm = _to_float(_first_value(row, ["rotor_rpm", "rotor_speed", "RotorRPM"]))
+            if rotor_rpm is not None:
+                rec["rotor_rpm"] = max(0.0, rotor_rpm)
+
+            nacelle_pos = _to_float(
+                _first_value(row, ["nacelle_position", "nacelle_direction", "NacellePosition"])
+            )
+            if nacelle_pos is not None:
+                rec["nacelle_direction_deg"] = max(0.0, min(360.0, nacelle_pos))
+
+            blade_pitch = _to_float(_first_value(row, ["blade_pitch", "pitch_angle", "BladePitch"]))
+            if blade_pitch is not None:
+                rec["blade_pitch_deg"] = blade_pitch
+
+            gen_temp = _to_float(_first_value(row, ["generator_temp", "GeneratorTemp"]))
+            if gen_temp is not None:
+                rec["temperature"] = gen_temp
+
+            grid_freq = _to_float(_first_value(row, ["grid_frequency", "frequency", "GridFreq"]))
+            if grid_freq is not None:
+                rec["frequency"] = grid_freq
+
+            records.append(rec)
+
+        return records
+
+
+class SiemensGamesaTransformer(BaseTransformer):
+    """Transform Siemens Gamesa Diagnostic System SCADA CSV export to ODS-E.
+
+    Expected CSV columns: timestamp, active_power_kw, reactive_power_kvar,
+    wind_speed_nacelle, wind_speed_metmast, rotor_speed, pitch_angle,
+    generator_speed, bearing_temp, availability_status.
+    """
+
+    # availability_status (string) -> error_type
+    AVAILABILITY_MAPPING = {
+        "full": "normal",
+        "limited": "warning",
+        "standstill": "standby",
+        "error": "fault",
+        "offline": "offline",
+        "maintenance": "warning",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 10) or 10) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        records: List[Dict[str, Any]] = []
+        for row in rows:
+            ts_raw = _first_value(row, ["timestamp", "Timestamp", "Time", "datetime"])
+            iso_ts = _to_iso8601(ts_raw, timezone=timezone)
+            if not iso_ts:
+                continue
+
+            power_kw = _to_float(
+                _first_value(row, ["active_power_kw", "active_power", "power_kw", "Power"])
+            )
+            kwh = max((power_kw or 0.0) * interval_hours, 0.0)
+
+            status_raw = _first_value(
+                row, ["availability_status", "status", "Status", "availability"]
+            )
+            error_type = "unknown"
+            if status_raw is not None:
+                status_key = str(status_raw).strip().lower()
+                error_type = self.AVAILABILITY_MAPPING.get(status_key, "unknown")
+
+            rec = _base_record(
+                timestamp=iso_ts,
+                kwh=kwh,
+                error_type=error_type,
+                error_code=status_raw,
+                asset_id=asset_id,
+            )
+
+            if power_kw is not None:
+                rec["kW"] = power_kw
+
+            reactive_kvar = _to_float(
+                _first_value(row, ["reactive_power_kvar", "reactive_power", "ReactivePower"])
+            )
+            if reactive_kvar is not None:
+                rec["kVAr"] = reactive_kvar
+
+            wind_speed = _to_float(
+                _first_value(row, ["wind_speed_nacelle", "wind_speed", "WindSpeed"])
+            )
+            if wind_speed is None:
+                wind_speed = _to_float(
+                    _first_value(row, ["wind_speed_metmast", "metmast_wind_speed"])
+                )
+            if wind_speed is not None:
+                rec["wind_speed_ms"] = max(0.0, wind_speed)
+
+            rotor_speed = _to_float(_first_value(row, ["rotor_speed", "rotor_rpm", "RotorSpeed"]))
+            if rotor_speed is not None:
+                rec["rotor_rpm"] = max(0.0, rotor_speed)
+
+            pitch_angle = _to_float(_first_value(row, ["pitch_angle", "blade_pitch", "PitchAngle"]))
+            if pitch_angle is not None:
+                rec["blade_pitch_deg"] = pitch_angle
+
+            bearing_temp = _to_float(_first_value(row, ["bearing_temp", "BearingTemp"]))
+            if bearing_temp is not None:
+                rec["temperature"] = bearing_temp
+
+            records.append(rec)
+
+        return records
+
+
+class NordexTransformer(BaseTransformer):
+    """Transform Nordex Control SCADA CSV export to ODS-E.
+
+    Expected CSV columns: timestamp, active_power_kw, wind_speed,
+    rotor_speed, blade_angle, generator_temp, transformer_temp,
+    turbine_status.
+    """
+
+    # turbine_status (string) -> error_type
+    TURBINE_STATUS_MAPPING = {
+        "running": "normal",
+        "standby": "standby",
+        "paused": "standby",
+        "warning": "warning",
+        "error": "fault",
+        "offline": "offline",
+        "maintenance": "warning",
+    }
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        rows = self._parse_csv_rows(data)
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 10) or 10) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        records: List[Dict[str, Any]] = []
+        for row in rows:
+            ts_raw = _first_value(row, ["timestamp", "Timestamp", "Time", "datetime"])
+            iso_ts = _to_iso8601(ts_raw, timezone=timezone)
+            if not iso_ts:
+                continue
+
+            power_kw = _to_float(
+                _first_value(row, ["active_power_kw", "active_power", "power_kw", "Power"])
+            )
+            kwh = max((power_kw or 0.0) * interval_hours, 0.0)
+
+            status_raw = _first_value(row, ["turbine_status", "status", "Status", "state"])
+            error_type = "unknown"
+            if status_raw is not None:
+                status_key = str(status_raw).strip().lower()
+                error_type = self.TURBINE_STATUS_MAPPING.get(status_key, "unknown")
+
+            rec = _base_record(
+                timestamp=iso_ts,
+                kwh=kwh,
+                error_type=error_type,
+                error_code=status_raw,
+                asset_id=asset_id,
+            )
+
+            if power_kw is not None:
+                rec["kW"] = power_kw
+
+            wind_speed = _to_float(_first_value(row, ["wind_speed", "WindSpeed", "wind_speed_ms"]))
+            if wind_speed is not None:
+                rec["wind_speed_ms"] = max(0.0, wind_speed)
+
+            rotor_speed = _to_float(_first_value(row, ["rotor_speed", "rotor_rpm", "RotorSpeed"]))
+            if rotor_speed is not None:
+                rec["rotor_rpm"] = max(0.0, rotor_speed)
+
+            blade_angle = _to_float(_first_value(row, ["blade_angle", "blade_pitch", "BladeAngle"]))
+            if blade_angle is not None:
+                rec["blade_pitch_deg"] = blade_angle
+
+            gen_temp = _to_float(_first_value(row, ["generator_temp", "GeneratorTemp"]))
+            if gen_temp is not None:
+                rec["temperature"] = gen_temp
 
             records.append(rec)
 
