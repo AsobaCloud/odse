@@ -103,6 +103,8 @@ def _get_transformer(source: str):
         "sgre": SiemensGamesaTransformer(),
         "nordex": NordexTransformer(),
         "nordex-control": NordexTransformer(),
+        "terraco": TerracoTransformer(),
+        "terraco-historian": TerracoTransformer(),
         "csv": GenericCSVTransformer(),
         "generic_csv": GenericCSVTransformer(),
         "generic": GenericCSVTransformer(),
@@ -1884,6 +1886,165 @@ class NordexTransformer(BaseTransformer):
             records.append(rec)
 
         return records
+
+
+class TerracoTransformer(BaseTransformer):
+    """Transform Terraco SCADA historian data to ODS-E.
+
+    Handles both JSON (REST API response) and CSV (export) inputs.
+    Terraco uses ``{AssetName}.{TagName}`` naming convention. The transformer
+    matches tag suffixes (case-insensitive) to ODS-E fields.
+
+    JSON structure (REST API):
+        {"data": [{"timestamp": "...", "values": {"JBAY.ActivePower": 1800.0, ...}}]}
+
+    CSV structure (export):
+        timestamp,JBAY.ActivePower,JBAY.ActiveEnergy,JBAY.Status,...
+    """
+
+    # Integer state code -> error_type
+    STATE_MAPPING = {
+        0: "offline",
+        1: "normal",
+        2: "standby",
+        3: "warning",
+        4: "fault",
+        5: "warning",  # maintenance
+    }
+
+    # Tag suffix -> (ODS-E field, is_power_kwh)
+    # Order matters: first match wins per field.
+    TAG_SUFFIX_MAP = [
+        (["activepower", "kw"], "kW", False),
+        (["activeenergy", "kwh"], "kWh", True),
+        (["status", "state"], "error_type", False),
+        (["temperature"], "temperature", False),
+        (["voltage"], "voltage_ac", False),
+        (["current"], "current_ac", False),
+        (["frequency"], "frequency", False),
+        (["reactivepower"], "kVAr", False),
+        (["powerfactor"], "PF", False),
+    ]
+
+    def transform(self, data: Union[str, Path], **kwargs) -> List[Dict[str, Any]]:
+        timezone = kwargs.get("timezone")
+        interval_hours = (kwargs.get("interval_minutes", 10) or 10) / 60.0
+        asset_id = kwargs.get("asset_id")
+
+        # Detect JSON vs CSV input.
+        try:
+            payload = self._parse_json(data)
+            if isinstance(payload, (dict, list)):
+                return self._transform_json(
+                    payload, timezone=timezone, interval_hours=interval_hours,
+                    asset_id=asset_id,
+                )
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fall back to CSV.
+        rows = self._parse_csv_rows(data)
+        return self._transform_rows(
+            rows, timezone=timezone, interval_hours=interval_hours,
+            asset_id=asset_id,
+        )
+
+    def _transform_json(
+        self, payload: Any, *, timezone: Optional[str],
+        interval_hours: float, asset_id: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        samples = _extract_records(payload)
+        out: List[Dict[str, Any]] = []
+        for sample in samples:
+            ts = _to_iso8601(sample.get("timestamp"), timezone=timezone)
+            if not ts:
+                continue
+            values = sample.get("values")
+            if not isinstance(values, dict):
+                # Flat dict: treat the sample itself as the values map.
+                values = {k: v for k, v in sample.items() if k != "timestamp"}
+            out.append(
+                self._build_record(
+                    ts, values, interval_hours=interval_hours, asset_id=asset_id,
+                )
+            )
+        return out
+
+    def _transform_rows(
+        self, rows: List[Dict[str, Any]], *, timezone: Optional[str],
+        interval_hours: float, asset_id: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            ts_raw = _first_value(row, ["timestamp", "Timestamp", "Time", "datetime"])
+            ts = _to_iso8601(ts_raw, timezone=timezone)
+            if not ts:
+                continue
+            out.append(
+                self._build_record(
+                    ts, row, interval_hours=interval_hours, asset_id=asset_id,
+                )
+            )
+        return out
+
+    def _build_record(
+        self, ts: str, values: Dict[str, Any], *,
+        interval_hours: float, asset_id: Optional[str],
+    ) -> Dict[str, Any]:
+        mapped = self._map_tags(values)
+
+        power_kw = _to_float(mapped.get("kW"))
+        energy_kwh = _to_float(mapped.get("kWh"))
+        if energy_kwh is not None:
+            kwh = max(energy_kwh, 0.0)
+        elif power_kw is not None:
+            kwh = max(power_kw * interval_hours, 0.0)
+        else:
+            kwh = 0.0
+
+        state_code = _to_int(mapped.get("error_type"))
+        error_type = self.STATE_MAPPING.get(
+            state_code if state_code is not None else -1, "unknown",
+        )
+
+        rec = _base_record(
+            timestamp=ts,
+            kwh=kwh,
+            error_type=error_type,
+            error_code=state_code,
+            asset_id=asset_id,
+        )
+
+        if power_kw is not None:
+            rec["kW"] = power_kw
+
+        for field in ["temperature", "voltage_ac", "current_ac", "frequency", "kVAr"]:
+            val = _to_float(mapped.get(field))
+            if val is not None:
+                rec[field] = val
+
+        pf = _to_float(mapped.get("PF"))
+        if pf is not None:
+            rec["PF"] = max(0.0, min(1.0, pf))
+
+        return rec
+
+    def _map_tags(self, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Map Terraco tag names to ODS-E field names via suffix matching."""
+        result: Dict[str, Any] = {}
+        for key, val in values.items():
+            if val is None or val == "":
+                continue
+            key_lower = str(key).lower()
+            # Strip asset prefix: "JBAY.ActivePower" -> "activepower"
+            suffix = key_lower.split(".")[-1] if "." in key_lower else key_lower
+            for suffixes, odse_field, _is_energy in self.TAG_SUFFIX_MAP:
+                if suffix in suffixes:
+                    # Don't overwrite if already mapped (first match wins).
+                    if odse_field not in result:
+                        result[odse_field] = val
+                    break
+        return result
 
 
 class GenericCSVTransformer(BaseTransformer):

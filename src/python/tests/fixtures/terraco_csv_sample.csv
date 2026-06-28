@@ -1,0 +1,4 @@
+timestamp,JBAY.ActivePower,JBAY.ActiveEnergy,JBAY.Status,JBAY.Temperature,JBAY.Voltage,JBAY.Current,JBAY.Frequency,JBAY.ReactivePower,JBAY.PowerFactor
+2026-06-27T10:00:00+02:00,1800.0,300.0,1,45.2,400.0,12.5,50.0,300.0,0.98
+2026-06-27T10:10:00+02:00,0.0,0.0,2,38.0,400.0,0.0,50.01,0.0,1.0
+2026-06-27T10:20:00+02:00,0.0,0.0,4,35.0,0.0,0.0,0.0,0.0,0.0
