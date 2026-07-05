@@ -12,7 +12,7 @@
 
 ## Validation
 
-- [ ] `PYTHONPATH=src/python python3 -m unittest discover -s src/python/tests -v`
+- [ ] `PYTHONPATH=src/python pytest src/python/tests -v`
 - [ ] `PYTHONPATH=src/python python3 tools/transform_harness.py --mode fixture`
 
 ## Compatibility

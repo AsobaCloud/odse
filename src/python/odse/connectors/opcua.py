@@ -15,6 +15,7 @@ try:
     from asyncua import Client, Node
 except ImportError:
     Client = None
+    Node = Any
 
 from ..validator import validate
 from ..transformer import _to_iso8601, _to_float

@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e src/python
+          pip install -e "src/python[dev,ingest,parquet]"
 
       - name: CLI smoke test
         run: |
@@ -28,7 +28,7 @@ jobs:
           odse version
 
       - name: Run unit tests
-        run: PYTHONPATH=src/python python3 -m unittest discover -s src/python/tests -v
+        run: PYTHONPATH=src/python pytest src/python/tests -v
 
       - name: Run transform harness fixture mode
         run: PYTHONPATH=src/python python3 tools/transform_harness.py --mode fixture
