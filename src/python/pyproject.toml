@@ -32,6 +32,7 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "jsonschema>=4.0.0",
+    "lxml>=4.9.0",
 ]
 parquet = [
     "pandas>=1.5.0",
@@ -45,6 +46,9 @@ mqtt = [
 ]
 opcua = [
     "asyncua>=1.0.0",
+]
+scl = [
+    "lxml>=4.9.0",
 ]
 ingest = [
     "PyYAML>=6.0.0",
