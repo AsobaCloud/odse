@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-13
+
+### Added
+- pvlib-python interoperability adapter (`odse.adapters.pvlib`):
+  - `odse_to_pvlib()`: Converts ODS-E JSON/JSONL into UTC-indexed pandas DataFrames conforming to `pvlib.iotools` convention.
+  - `pvlib_to_odse()`: Exports simulated pvlib DataFrames back into standard ODS-E JSON dictionary payloads.
+  - Optional dependency extra `odse[pvlib]` with `pvlib>=0.10.0` and `pandas>=1.5.0`.
+- Top-level CLI subcommand `to-pvlib` (aliased as `pvlib`) for converting ODS-E telemetry to CSV, JSON, or Parquet.
+- Comprehensive pvlib integration guide and edge-case troubleshooting documentation (`spec/pvlib-integration.md`).
+
 ## [0.8.2] - 2026-06-28
 
 ### Fixed

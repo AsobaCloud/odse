@@ -66,6 +66,7 @@ ODS-E is an open specification for interoperable energy asset data across genera
 - [Industrial Protocols (MQTT, OPC-UA)](spec/industrial-connectors.md)
 - [SCADA (IEC 61850) Integration](spec/scada-integration.md)
 - [Eskom Ingest (AMR, Data Portal)](spec/eskom-ingest.md)
+- [pvlib-python Modeling Integration](spec/pvlib-integration.md)
 
 ### Modeling & Markets
 
