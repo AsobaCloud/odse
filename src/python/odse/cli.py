@@ -153,6 +153,47 @@ def main(argv=None):
         help="Drop rows where error_type indicates fault or offline",
     )
 
+    # --- to-openoa ---
+    p_openoa = subparsers.add_parser(
+        "to-openoa",
+        aliases=["openoa"],
+        help="Convert ODS-E data into OpenOA-compatible format",
+    )
+    p_openoa.add_argument(
+        "--input",
+        "-i",
+        required=True,
+        help="Input ODS-E JSON or JSONL file path (use '-' for stdin)",
+    )
+    p_openoa.add_argument(
+        "-o",
+        "--output",
+        help="Output file path (default: stdout)",
+    )
+    p_openoa.add_argument(
+        "-f",
+        "--format",
+        choices=["json", "csv", "parquet"],
+        default="json",
+        help="Output format: json, csv, or parquet (default: json)",
+    )
+    p_openoa.add_argument(
+        "--plant-name",
+        default="ODSE_Plant",
+        help="Name of the renewable power plant (default: ODSE_Plant)",
+    )
+    p_openoa.add_argument(
+        "--no-map-variables",
+        dest="map_variables",
+        action="store_false",
+        help="Do not rename canonical ODS-E attributes to OpenOA column names",
+    )
+    p_openoa.add_argument(
+        "--drop-invalid",
+        action="store_true",
+        help="Drop rows where error_type indicates fault or offline",
+    )
+
     p_version = subparsers.add_parser("version", help="Print ODS-E version")
     p_version.set_defaults(command="version")
 
@@ -170,9 +211,70 @@ def main(argv=None):
         _cmd_ingest(args)
     elif args.command in ("to-pvlib", "pvlib"):
         _cmd_to_pvlib(args)
+    elif args.command in ("to-openoa", "openoa"):
+        _cmd_to_openoa(args)
     elif args.command == "version":
         print(__version__)
         sys.exit(0)
+
+
+def _cmd_to_openoa(args):
+    """Convert ODS-E telemetry to OpenOA format."""
+    try:
+        from .adapters.openoa import odse_to_openoa
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    source_content = sys.stdin.read() if args.input == "-" else args.input
+
+    try:
+        res = odse_to_openoa(
+            source=source_content,
+            plant_name=args.plant_name,
+            map_variables=args.map_variables,
+            drop_invalid=args.drop_invalid,
+            return_plantdata=False,
+        )
+        df = res["scada"]
+        meta = res["metadata"]
+    except Exception as exc:
+        print(f"Error: OpenOA conversion failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.format == "csv":
+        out_str = df.to_csv()
+        if args.output:
+            Path(args.output).write_text(out_str, encoding="utf-8")
+            print(f"Wrote {len(df)} records to {args.output}", file=sys.stderr)
+        else:
+            print(out_str, end="")
+    elif args.format == "parquet":
+        if not args.output:
+            print("Error: --output is required when format is parquet", file=sys.stderr)
+            sys.exit(1)
+        df.to_parquet(args.output)
+        print(f"Wrote {len(df)} records to {args.output}", file=sys.stderr)
+    else:  # json
+        import pandas as pd
+        records = []
+        df_reset = df.reset_index()
+        if "timestamp" in df_reset.columns:
+            df_reset["timestamp"] = df_reset["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for row in df_reset.to_dict(orient="records"):
+            clean_row = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+            records.append(clean_row)
+
+        output_obj = {
+            "metadata": meta,
+            "data": records,
+        }
+        output_text = json.dumps(output_obj, indent=2)
+        if args.output:
+            Path(args.output).write_text(output_text, encoding="utf-8")
+            print(f"Wrote {len(records)} records to {args.output}", file=sys.stderr)
+        else:
+            print(output_text)
 
 
 def _cmd_to_pvlib(args):

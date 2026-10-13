@@ -5,7 +5,7 @@ A Python library for validating and transforming energy asset data
 using the ODS-E specification.
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 from .validator import (
     validate,
@@ -18,7 +18,7 @@ from .transformer import transform, transform_stream
 from .enrichment import enrich
 from .io import to_csv, to_dataframe, to_json, to_parquet
 from .regulatory import REGULATORY_EVENT_SCHEMA_VERSION, normalize_regulatory_events
-from .adapters import odse_to_pvlib, pvlib_to_odse
+from .adapters import odse_to_pvlib, pvlib_to_odse, odse_to_openoa, openoa_to_odse
 
 __all__ = [
     "validate",
@@ -37,4 +37,6 @@ __all__ = [
     "to_dataframe",
     "odse_to_pvlib",
     "pvlib_to_odse",
+    "odse_to_openoa",
+    "openoa_to_odse",
 ]

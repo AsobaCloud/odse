@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-13
+
+### Added
+- OpenOA (Open Operational Assessment) interoperability adapter (`odse.adapters.openoa`):
+  - `odse_to_openoa()`: Converts ODS-E JSON/JSONL into UTC-indexed pandas DataFrames (`scada`, `tower`, `meter`) or OpenOA `PlantData` objects.
+  - `openoa_to_odse()`: Exports OpenOA analysis DataFrames back into standard ODS-E JSON dictionary payloads with sanitized nulls.
+  - Optional dependency extra `odse[openoa]` with `openoa>=2.0.0` and `pandas>=1.5.0`.
+- Top-level CLI subcommand `to-openoa` (aliased as `openoa`) for converting ODS-E telemetry to OpenOA tables.
+- Comprehensive OpenOA integration specification and edge-case troubleshooting documentation (`spec/openoa-integration.md`).
+
 ## [0.9.0] - 2026-10-13
 
 ### Added
