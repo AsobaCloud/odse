@@ -126,8 +126,16 @@ Structural changes to core schemas, normative field definitions, or new domain p
 * **SEP-001**: Runtime validator parity for SA trading schema fields.
 * **SEP-002**: SA trading conformance profiles.
 * **SEP-003**: Reference enrichment contract.
+* **SEP-015**: Working CLI with `transform` and `validate` commands.
+* **SEP-018**: Batch validation helper with summary reporting.
+* **SEP-019**: SDK usage examples and fixture library.
+* **SEP-020**: Generic CSV column-mapping transformer.
+* **SEP-021**: Terraco SCADA historian transform.
 * **SEP-025**: Wind turbine SCADA transforms (Vestas, Siemens Gamesa, Nordex) and wind schema fields.
 * **SEP-026**: BESS transforms (Sungrow PowerTitan, BYD) and dispatch schema fields.
+* **SEP-037**: Sample data fixtures for tutorials and QA.
+
+> The authoritative, continuously-updated SEP backlog (Proposed → Active) lives in the GitHub issue tracker. This index lists finalized SEPs and is updated at finalization (§6, step 5).
 
 ---
 
