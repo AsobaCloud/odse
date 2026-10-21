@@ -90,6 +90,11 @@ def _get_transformer(source: str):
         "eskom_amr": EskomAMRTransformer(),
         "eskom-amr": EskomAMRTransformer(),
         "nrs049": EskomAMRTransformer(),
+        "iec62056_meter": IEC62056MeterTransformer(),
+        "iec62056-meter": IEC62056MeterTransformer(),
+        "obis_meter": IEC62056MeterTransformer(),
+        "obis-meter": IEC62056MeterTransformer(),
+        "huawei_meter": IEC62056MeterTransformer(),
         "sungrow_bess": SungrowBESSTransformer(),
         "sungrow-bess": SungrowBESSTransformer(),
         "powertitan": SungrowBESSTransformer(),
@@ -2249,6 +2254,117 @@ def _first_value(row: Dict[str, Any], keys: List[str]) -> Any:
         if key in row and row[key] not in (None, ""):
             return row[key]
     return None
+
+
+class IEC62056MeterTransformer(BaseTransformer):
+    """IEC 62056 (OBIS) billing-meter readings → ODS-E (SEP-052).
+
+    Consumes Huawei FusionSolar-style northbound meter exports::
+
+        {"Meter": [{"serialNumber", "MeterMultipliers": {...}}],
+         "MeterReading": [{"timeStamp", "Readings": [
+             {"ReadingType ref", "value"}]}]}
+
+    Register classification (confirm against Huawei northbound meter-read
+    documentation during the SEP-052 comment window, #59):
+    - ``0.0.0.1.1.1.12`` → cumulative active **import** → per-interval
+      deltas, ``direction: consumption``
+    - ``0.0.0.1.15.1.12`` → cumulative active **export** → per-interval
+      deltas, ``direction: generation``
+    - other registers (slow counters, ``1.16``–``1.19``) are skipped as
+      passthrough until semantics are confirmed.
+
+    Cumulative monotonic registers are differenced per reading;
+    ``MeterMultipliers`` (service × meter) are applied; rollover and
+    negative deltas yield a 0 kWh interval.
+    """
+
+    @staticmethod
+    def _classify(ref: Any) -> Optional[str]:
+        if not isinstance(ref, str):
+            return None
+        parts = ref.split(".")
+        if len(parts) < 6:
+            return None
+        try:
+            b, c = int(parts[3]), int(parts[4])
+        except ValueError:
+            return None
+        if b == 1 and c == 1:
+            return "consumption"
+        if b == 1 and c == 15:
+            return "generation"
+        return None
+
+    def transform(
+        self, data: Union[str, Path], **kwargs
+    ) -> List[Dict[str, Any]]:
+        payload = self._parse_json(data)
+        if not isinstance(payload, dict) or not isinstance(
+            payload.get("MeterReading"), list
+        ):
+            raise ValueError(
+                "IEC 62056 meter payload must be an object with a "
+                "'MeterReading' list"
+            )
+
+        meters = payload.get("Meter") or []
+        meter = meters[0] if meters and isinstance(meters[0], dict) else {}
+        serial = meter.get("serialNumber")
+
+        multiplier = 1.0
+        multipliers = meter.get("MeterMultipliers") or {}
+        for key in ("ServiceMultiplier", "MeterMultiplier"):
+            m = multipliers.get(key) or {}
+            value = _to_float(m.get("value")) if isinstance(m, dict) else None
+            if value:
+                multiplier *= value
+
+        timezone = kwargs.get("timezone")
+        asset_id = kwargs.get("asset_id") or serial
+
+        # ref-kind → sorted [(iso_ts, raw cumulative value)]
+        series: Dict[str, List[tuple]] = {}
+        for entry in payload["MeterReading"]:
+            if not isinstance(entry, dict):
+                continue
+            ts = _to_iso8601(entry.get("timeStamp"), timezone=timezone)
+            if not ts:
+                continue
+            for reading in entry.get("Readings") or []:
+                if not isinstance(reading, dict):
+                    continue
+                kind = self._classify(reading.get("ReadingType ref"))
+                if kind is None:
+                    continue
+                series.setdefault(kind, []).append(
+                    (ts, _to_float(reading.get("value")))
+                )
+
+        out: List[Dict[str, Any]] = []
+        for kind in ("consumption", "generation"):
+            points = sorted(series.get(kind, []), key=lambda p: p[0])
+            prev: Optional[float] = None
+            for ts, raw in points:
+                if prev is None:
+                    # First reading: no prior register value to delta from
+                    prev = raw
+                    continue
+                if raw is not None:
+                    kwh = max((raw - prev) * multiplier, 0.0)
+                    prev = raw
+                else:
+                    kwh = 0.0
+                record: Dict[str, Any] = {
+                    "timestamp": ts,
+                    "kWh": round(kwh, 3),
+                    "direction": kind,
+                    "error_type": "normal",
+                }
+                if asset_id:
+                    record["asset_id"] = str(asset_id)
+                out.append(record)
+        return out
 
 
 def _to_float(value: Any) -> Optional[float]:

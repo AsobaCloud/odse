@@ -848,6 +848,99 @@ class SEP051ElectricalKPITests(unittest.TestCase):
         result = validate(rec)
         self.assertTrue(result.is_valid)
         self.assertNotIn("UNKNOWN_FIELD", [w.code for w in result.warnings])
+class SEP052OBISMeterTests(unittest.TestCase):
+    """SEP-052: IEC 62056 (OBIS) billing-meter readings transform."""
+
+    PAYLOAD = """
+    {
+      "Meter": [{
+        "serialNumber": "10253148",
+        "MeterMultipliers": {
+          "ServiceMultiplier": {"kind": "transformerRatio", "value": 1},
+          "MeterMultiplier": {"kind": "transformerRatio", "value": 1}
+        }
+      }],
+      "MeterReading": [
+        {"timeStamp": "2026-01-01 06:00:00.000", "Readings": [
+          {"ReadingType ref": "0.0.0.1.1.1.12.0.0.0.0.0.0.0.0.3.72.0", "value": 1000},
+          {"ReadingType ref": "0.0.0.1.15.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 500},
+          {"ReadingType ref": "0.0.0.1.16.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 1}
+        ]},
+        {"timeStamp": "2026-01-02 06:00:00.000", "Readings": [
+          {"ReadingType ref": "0.0.0.1.1.1.12.0.0.0.0.0.0.0.0.3.72.0", "value": 103800},
+          {"ReadingType ref": "0.0.0.1.15.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 5380},
+          {"ReadingType ref": "0.0.0.1.16.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 2}
+        ]},
+        {"timeStamp": "2026-01-03 06:00:00.000", "Readings": [
+          {"ReadingType ref": "0.0.0.1.1.1.12.0.0.0.0.0.0.0.0.3.72.0", "value": 99999},
+          {"ReadingType ref": "0.0.0.1.15.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 0},
+          {"ReadingType ref": "0.0.0.1.16.1.12.0.0.0.0.0.0.0.0.3.73.0", "value": 3}
+        ]}
+      ]
+    }
+    """
+
+    def test_delta_conversion_and_directions(self):
+        rows = transform(self.PAYLOAD, source="iec62056_meter")
+        cons = [r for r in rows if r["direction"] == "consumption"]
+        gen = [r for r in rows if r["direction"] == "generation"]
+        # First reading skipped (no prior register value); two deltas each
+        self.assertEqual(len(cons), 2)
+        self.assertEqual(len(gen), 2)
+        self.assertAlmostEqual(cons[0]["kWh"], 102800.0)  # 103800 - 1000
+        self.assertAlmostEqual(gen[0]["kWh"], 4880.0)      # 5380 - 500
+        # 2026-01-02 → 01-03: import register drops (rollover/reset) → 0;
+        # export register drops below zero (reset) → 0
+        self.assertEqual(cons[1]["kWh"], 0.0)
+        self.assertEqual(gen[1]["kWh"], 0.0)
+        self.assertEqual(cons[0]["asset_id"], "10253148")
+        self.assertEqual(cons[0]["error_type"], "normal")
+
+    def test_multipliers_applied(self):
+        payload = self.PAYLOAD.replace('"value": 1}\n        }\n      }],\n      "MeterReading"',
+                                       '"value": 2}\n        }\n      }],\n      "MeterReading"')
+        payload2 = """
+        {
+          "Meter": [{
+            "serialNumber": "M1",
+            "MeterMultipliers": {
+              "ServiceMultiplier": {"kind": "transformerRatio", "value": 2},
+              "MeterMultiplier": {"kind": "transformerRatio", "value": 3}
+            }
+          }],
+          "MeterReading": [
+            {"timeStamp": "2026-01-01 06:00:00.000", "Readings": [
+              {"ReadingType ref": "0.0.0.1.1.1.12.0", "value": 100}]},
+            {"timeStamp": "2026-01-02 06:00:00.000", "Readings": [
+              {"ReadingType ref": "0.0.0.1.1.1.12.0", "value": 200}]}
+          ]
+        }
+        """
+        rows = transform(payload2, source="iec62056_meter")
+        cons = [r for r in rows if r["direction"] == "consumption"]
+        self.assertEqual(len(cons), 1)
+        # (200 - 100) × (ServiceMultiplier 2 × MeterMultiplier 3) = 600
+        self.assertAlmostEqual(cons[0]["kWh"], 600.0)
+
+    def test_sibaya_fixture_round_trips_strictly(self):
+        from pathlib import Path
+        fixture = Path(__file__).resolve().parents[3] / "examples" / "data" / (
+            "iec62056-meter-sibaya.json")
+        rows = transform(fixture.read_text(), source="iec62056_meter")
+        self.assertEqual(len(rows), 368)  # 184 deltas × 2 directions
+        directions = {r["direction"] for r in rows}
+        self.assertEqual(directions, {"consumption", "generation"})
+        total_import = sum(r["kWh"] for r in rows if r["direction"] == "consumption")
+        total_export = sum(r["kWh"] for r in rows if r["direction"] == "generation")
+        # ~38 MWh/day import, ~3.8 MWh/day export over 184 days
+        self.assertGreater(total_import, 6_000_000)
+        self.assertLess(total_import, 8_000_000)
+        self.assertGreater(total_export, 600_000)
+        self.assertLess(total_export, 800_000)
+        for rec in rows:
+            result = validate(rec)
+            self.assertTrue(result.is_valid)
+            self.assertNotIn("UNKNOWN_FIELD", [w.code for w in result.warnings])
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ FIXTURE_FILE_TRANSFORMS = [
     # SEP-051: FusionSolar getDevHistoryKpi electrical-KPI fixture, incl. a
     # grid over-voltage warning event (inverter_state 513 at midday peak)
     ("huawei", "huawei_fusionsolar_kpi_24h.csv"),
+    # SEP-052: IEC 62056 meter export (Sibaya billing meter, 185 daily readings)
+    ("iec62056_meter", "iec62056-meter-sibaya.json"),
 ]
 
 # (source key, inline payload, transform kwargs) — payloads mirror

@@ -1,0 +1,63 @@
+# IEC 62056 (OBIS) billing-meter readings → ODS-E transform spec (SEP-052)
+# Source key: iec62056_meter (aliases: iec62056-meter, obis_meter, huawei_meter)
+# Reference payload: Huawei FusionSolar northbound meter-read export
+# Fixture: examples/data/iec62056-meter-sibaya.json (185 daily readings,
+# serial 10253148, 2025-10-30 → 2026-05-02)
+
+source_key: iec62056_meter
+schema_version: ODS-E-1.0
+
+input_schema:
+  format: json
+  encoding: utf-8
+  structure:
+    Meter:
+      - serialNumber: string
+        MeterMultipliers:
+          ServiceMultiplier: { kind: string, value: number }
+          MeterMultiplier: { kind: string, value: number }
+    MeterReading:
+      - timeStamp: datetime
+        Readings:
+          - "ReadingType ref": string  # OBIS register code
+            value: number               # cumulative register
+            ReadingQualities: list
+
+register_mapping:
+  # OBIS register semantics inferred from register magnitudes (import ≈
+  # 38 MWh/day, export ≈ 3.8 MWh/day at the Sibaya site). Confirm against
+  # Huawei northbound meter-read documentation (SEP-052 comment window, #59)
+  # and record confirmations here.
+  - pattern: "0.0.0.1.1.1.12*"
+    meaning: cumulative active import (kWh)
+    output: { direction: consumption, transform: interval_delta }
+  - pattern: "0.0.0.1.15.1.12*"
+    meaning: cumulative active export (kWh)
+    output: { direction: generation, transform: interval_delta }
+  - pattern: "0.0.0.1.{16..19}.1.12*"
+    meaning: slow counters (semantics unconfirmed)
+    output: { passthrough: deferred }  # skipped until confirmed (#59)
+
+output_mapping:
+  timestamp:
+    source: input.MeterReading[].timeStamp
+    transform: to_iso8601
+  kWh:
+    source: input.MeterReading[].Readings[].value
+    transform: interval_delta  # monotonic register difference × multipliers
+    multiply_by:
+      - Meter.MeterMultipliers.ServiceMultiplier.value
+      - Meter.MeterMultipliers.MeterMultiplier.value
+  direction:
+    source: register_mapping
+  error_type:
+    constant: normal
+  asset_id:
+    source: input.Meter[].serialNumber
+    fallback: kwargs.asset_id
+
+validation_rules:
+  - rollover_and_negative_deltas: clamp_to_zero
+  - first_reading: skipped (no prior register value)
+  - readings_cadence: gap-tolerant (daily in reference fixture)
+  - all_output_records_must_pass: schemas/energy-timeseries.json (strict)
