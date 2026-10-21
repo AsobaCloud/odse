@@ -220,7 +220,7 @@ def test_pvlib_to_odse_unnamed_datetimeindex():
     assert "telemetry" in result
     assert len(result["telemetry"]) == 3
     assert result["telemetry"][0]["timestamp"] == "2026-06-01T10:00:00Z"
-    assert result["telemetry"][0]["active_power_kW"] == 10.0
+    assert result["telemetry"][0]["kW"] == 10.0
     assert result["telemetry"][0]["poa_irradiance"] == 500.0
 
 
