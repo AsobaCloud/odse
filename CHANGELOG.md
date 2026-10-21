@@ -9,6 +9,9 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 ### Added
 - Electrical and per-phase measurement fields in `energy-timeseries` schema (SEP-049, #56): `kW`, `kVAr`, `voltage_ac`/`voltage_ac_l1`/`_l2`/`_l3`, `current_ac`/`current_ac_l1`/`_l2`/`_l3`, `frequency`, `voltage_dc`, `current_dc`, `temperature`, `ambient_temperature_c`, `module_temperature_c`, `poa_irradiance`, `ghi`, `dni`, `dhi` — formalizing fields runtime transformers already emit, plus per-phase slots for distribution-grid unbalance analysis.
 - Strict schema conformance harness (`tests/test_schema_conformance.py`, SEP-049): Draft 2020-12 validation of transformer fixture output plus a `SCHEMA_FIELDS` parity check, preventing schema/runtime drift in CI.
+- Huawei FusionSolar electrical KPI ingest (SEP-051, #58): `HuaweiTransformer` now maps `a_u`/`b_u`/`c_u` to `voltage_ac_l1`/`_l2`/`_l3`, `pv1_u` to `voltage_dc`, and `active_power` to `kW`; `transforms/huawei-fusionsolar.yaml` input schema updated; new 24 h KPI fixture (`examples/data/huawei_fusionsolar_kpi_24h.csv`) including a grid over-voltage warning event (`inverter_state` 513).
+- Per-phase AC emissions from `SungrowTransformer` (SEP-051, #58): `voltage_ac_l1/l2/l3` and `current_ac_l1/l2/l3` emitted alongside retained aggregates (`voltage_ac` mean, `current_ac` sum), preserving phase-unbalance information for distribution-grid analysis.
+- `oem_error_code` field in `energy-timeseries` (SEP-051, #58): canonicalizes the OEM status-code emission already produced by the Solax Cloud, Sungrow, and Sungrow BESS transforms; surfaced by the SEP-049 conformance harness when Sungrow coverage was added.
 
 ### Changed
 - `validate()` now emits non-fatal `UNKNOWN_FIELD` warnings for keys outside the canonical schema (SEP-049); `is_valid` semantics unchanged.
