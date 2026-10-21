@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-21
+
 ### Added
 - Electrical and per-phase measurement fields in `energy-timeseries` schema (SEP-049, #56): `kW`, `kVAr`, `voltage_ac`/`voltage_ac_l1`/`_l2`/`_l3`, `current_ac`/`current_ac_l1`/`_l2`/`_l3`, `frequency`, `voltage_dc`, `current_dc`, `temperature`, `ambient_temperature_c`, `module_temperature_c`, `poa_irradiance`, `ghi`, `dni`, `dhi` — formalizing fields runtime transformers already emit, plus per-phase slots for distribution-grid unbalance analysis.
 - Strict schema conformance harness (`tests/test_schema_conformance.py`, SEP-049): Draft 2020-12 validation of transformer fixture output plus a `SCHEMA_FIELDS` parity check, preventing schema/runtime drift in CI.
