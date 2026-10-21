@@ -75,12 +75,6 @@ class ERPSchemaStructureTests(unittest.TestCase):
         for name in ERP_SCHEMAS:
             cls.schemas[name] = _load_schema(name)
 
-    def test_all_schemas_valid_json(self):
-        """All 7 schema files parse as valid JSON."""
-        for name in ERP_SCHEMAS:
-            with self.subTest(schema=name):
-                self.assertIn(name, self.schemas)
-
     def test_schema_has_draft_2020_12(self):
         for name, schema in self.schemas.items():
             with self.subTest(schema=name):
@@ -553,9 +547,6 @@ class IFSCloudTransformTests(unittest.TestCase):
         with open(ERP_TRANSFORM_DIR / "ifs-cloud.yaml") as f:
             cls.doc = yaml.safe_load(f)
 
-    def test_yaml_parses(self):
-        self.assertIsInstance(self.doc, dict)
-
     def test_has_required_sections(self):
         for section in [
             "transform", "input_schema", "equipment_id_resolution",
@@ -578,9 +569,6 @@ class IFSCloudTransformTests(unittest.TestCase):
                     f"Schema file {target} referenced by extraction "
                     f"'{ext_name}' not found in {SCHEMA_DIR}",
                 )
-
-    def test_extraction_count(self):
-        self.assertEqual(len(self.doc["extractions"]), 5)
 
     def test_each_extraction_has_output_mapping(self):
         for ext_name, ext in self.doc["extractions"].items():

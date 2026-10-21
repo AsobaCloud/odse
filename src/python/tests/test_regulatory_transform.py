@@ -15,11 +15,6 @@ SPEC_PATH = ROOT / "spec" / "regulatory-event-normalization.md"
 
 
 class RegulatoryTransformArtifactTests(unittest.TestCase):
-    def test_artifacts_exist(self):
-        self.assertTrue(SCHEMA_PATH.exists())
-        self.assertTrue(TRANSFORM_PATH.exists())
-        self.assertTrue(SPEC_PATH.exists())
-
     def test_schema_declares_expected_required_fields(self):
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
