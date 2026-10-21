@@ -47,6 +47,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
@@ -58,7 +59,13 @@ except ImportError:
 
 # Canonical bidirectional variable mapping matrix
 ODSE_TO_PVLIB_MAP: Dict[str, str] = {
+    # Legacy input keys (SEP-050): accepted on input, deprecated;
+    # canonical keys below win on round-trip output.
     "active_power_kW": "p_mp",
+    "dc_voltage_v": "v_dc",
+    "dc_current_a": "i_dc",
+    # Canonical ODS-E keys (SEP-049)
+    "kW": "p_mp",
     "kWh": "ac_energy",
     "poa_irradiance": "poa_global",
     "ghi": "ghi",
@@ -67,11 +74,18 @@ ODSE_TO_PVLIB_MAP: Dict[str, str] = {
     "ambient_temperature_c": "temp_air",
     "module_temperature_c": "temp_cell",
     "wind_speed_ms": "wind_speed",
-    "dc_voltage_v": "v_dc",
-    "dc_current_a": "i_dc",
+    "voltage_dc": "v_dc",
+    "current_dc": "i_dc",
 }
 
 PVLIB_TO_ODSE_MAP: Dict[str, str] = {v: k for k, v in ODSE_TO_PVLIB_MAP.items()}
+
+# Legacy input keys accepted for back-compat (SEP-050): consuming them
+# emits a DeprecationWarning; canonical SEP-049 keys should be emitted
+# instead. Removal per the GOVERNANCE Deprecation Grace Period.
+LEGACY_INPUT_KEYS: frozenset = frozenset(
+    {"active_power_kW", "dc_voltage_v", "dc_current_a"}
+)
 
 
 def _check_dependencies() -> None:
@@ -200,6 +214,17 @@ def odse_to_pvlib(
 
     # 5. Apply Variable Renaming Matrix
     if map_variables:
+        # SEP-050: legacy input keys are deprecated; canonical keys win.
+        legacy_seen = sorted(LEGACY_INPUT_KEYS & set(df.columns))
+        if legacy_seen:
+            warnings.warn(
+                "ODS-E records use deprecated keys ({}); "
+                "emit canonical SEP-049 keys (kW, voltage_dc, current_dc) "
+                "instead. Legacy keys will be removed per the GOVERNANCE "
+                "Deprecation Grace Period.".format(", ".join(legacy_seen)),
+                DeprecationWarning,
+                stacklevel=2,
+            )
         rename_cols = {k: v for k, v in ODSE_TO_PVLIB_MAP.items() if k in df.columns}
         df = df.rename(columns=rename_cols)
 

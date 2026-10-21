@@ -195,7 +195,7 @@ def test_bidirectional_roundtrip_fidelity():
     # Check first record fidelity
     rec0 = exported["telemetry"][0]
     assert rec0["timestamp"] == "2026-06-01T12:00:00Z"
-    assert rec0["active_power_kW"] == 4500.0
+    assert rec0["kW"] == 4500.0
     assert rec0["kWh"] == 375.0
     assert rec0["poa_irradiance"] == 920.0
     assert rec0["ambient_temperature_c"] == 28.5
@@ -220,7 +220,7 @@ def test_pvlib_to_odse_unnamed_datetimeindex():
     assert "telemetry" in result
     assert len(result["telemetry"]) == 3
     assert result["telemetry"][0]["timestamp"] == "2026-06-01T10:00:00Z"
-    assert result["telemetry"][0]["active_power_kW"] == 10.0
+    assert result["telemetry"][0]["kW"] == 10.0
     assert result["telemetry"][0]["poa_irradiance"] == 500.0
 
 
@@ -263,3 +263,52 @@ def test_cli_to_pvlib_command(tmp_path: Path):
     assert len(parsed_json["data"]) == 1
     assert parsed_json["data"][0]["p_mp"] == 15.0
 
+
+
+def test_legacy_input_keys_emit_deprecation_warning():
+    """
+    SEP-050: Given an ODS-E telemetry payload using legacy input keys
+    (`active_power_kW`, `dc_voltage_v`, `dc_current_a`),
+    When odse_to_pvlib() is invoked,
+    Then each legacy key is still mapped (back-compat) AND a
+    DeprecationWarning naming the keys is emitted; canonical-key payloads
+    emit no DeprecationWarning.
+    """
+    import warnings as _warnings
+    from odse.adapters.pvlib import odse_to_pvlib
+
+    legacy_records = [
+        {
+            "timestamp": "2026-06-01T12:00:00Z",
+            "active_power_kW": 10.0,
+            "dc_voltage_v": 600.0,
+            "dc_current_a": 16.7,
+        }
+    ]
+    with _warnings.catch_warnings(record=True) as caught:
+        _warnings.simplefilter("always")
+        df, _meta = odse_to_pvlib(legacy_records)
+    dep = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert dep, "legacy keys must emit a DeprecationWarning"
+    msg = str(dep[0].message)
+    for key in ("active_power_kW", "dc_voltage_v", "dc_current_a"):
+        assert key in msg
+    # Back-compat: legacy keys still mapped to pvlib columns
+    assert "p_mp" in df.columns
+    assert "v_dc" in df.columns
+    assert "i_dc" in df.columns
+
+    canonical_records = [
+        {
+            "timestamp": "2026-06-01T12:00:00Z",
+            "kW": 10.0,
+            "voltage_dc": 600.0,
+            "current_dc": 16.7,
+        }
+    ]
+    with _warnings.catch_warnings(record=True) as caught:
+        _warnings.simplefilter("always")
+        df, _meta = odse_to_pvlib(canonical_records)
+    dep = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert not dep, "canonical keys must not emit a DeprecationWarning"
+    assert "p_mp" in df.columns and "v_dc" in df.columns and "i_dc" in df.columns
