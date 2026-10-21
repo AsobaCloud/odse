@@ -1,0 +1,8 @@
+Time Period,Monday – Friday,Saturday,Sunday
+00:00 – 06:00,Off-Peak,Off-Peak,Off-Peak
+06:00 – 08:00,Peak,Off-Peak,Off-Peak
+08:00 – 12:00,Standard,Standard,Off-Peak
+12:00 – 17:00,Standard,Off-Peak,Off-Peak
+17:00 – 20:00,Peak,Standard,Standard
+20:00 – 22:00,Standard,Off-Peak,Off-Peak
+22:00 – 00:00,Off-Peak,Off-Peak,Off-Peak
