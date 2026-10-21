@@ -47,6 +47,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
@@ -78,6 +79,13 @@ ODSE_TO_PVLIB_MAP: Dict[str, str] = {
 }
 
 PVLIB_TO_ODSE_MAP: Dict[str, str] = {v: k for k, v in ODSE_TO_PVLIB_MAP.items()}
+
+# Legacy input keys accepted for back-compat (SEP-050): consuming them
+# emits a DeprecationWarning; canonical SEP-049 keys should be emitted
+# instead. Removal per the GOVERNANCE Deprecation Grace Period.
+LEGACY_INPUT_KEYS: frozenset = frozenset(
+    {"active_power_kW", "dc_voltage_v", "dc_current_a"}
+)
 
 
 def _check_dependencies() -> None:
@@ -206,6 +214,17 @@ def odse_to_pvlib(
 
     # 5. Apply Variable Renaming Matrix
     if map_variables:
+        # SEP-050: legacy input keys are deprecated; canonical keys win.
+        legacy_seen = sorted(LEGACY_INPUT_KEYS & set(df.columns))
+        if legacy_seen:
+            warnings.warn(
+                "ODS-E records use deprecated keys ({}); "
+                "emit canonical SEP-049 keys (kW, voltage_dc, current_dc) "
+                "instead. Legacy keys will be removed per the GOVERNANCE "
+                "Deprecation Grace Period.".format(", ".join(legacy_seen)),
+                DeprecationWarning,
+                stacklevel=2,
+            )
         rename_cols = {k: v for k, v in ODSE_TO_PVLIB_MAP.items() if k in df.columns}
         df = df.rename(columns=rename_cols)
 
