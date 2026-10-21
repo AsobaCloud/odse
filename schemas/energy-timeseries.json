@@ -24,6 +24,10 @@
       "type": "string",
       "description": "Original OEM error code (preserved for reference)"
     },
+    "oem_error_code": {
+      "type": "string",
+      "description": "Additional OEM status or fault code beyond error_code, as reported by the device API"
+    },
     "kVArh": {
       "type": "number",
       "description": "Reactive energy in kilovolt-ampere reactive hours"

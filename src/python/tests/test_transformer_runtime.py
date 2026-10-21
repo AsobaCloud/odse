@@ -783,5 +783,72 @@ class ConformanceProfileValidationTests(unittest.TestCase):
         self.assertNotIn("PROFILE_FIELD_MISSING", codes)
 
 
+class SEP051ElectricalKPITests(unittest.TestCase):
+    """SEP-051: per-phase OEM emissions and Huawei FusionSolar KPI ingest."""
+
+    def test_huawei_electrical_kpis_map_to_fields(self):
+        csv_data = (
+            "timestamp,power,inverter_state,run_state,a_u,b_u,c_u,pv1_u,active_power\n"
+            "2026-02-09 12:00:00,21,512,1,286.0,285.4,286.9,580.3,21.05\n"
+        )
+        rows = transform(csv_data, source="huawei")
+        self.assertEqual(len(rows), 1)
+        rec = rows[0]
+        self.assertEqual(rec["voltage_ac_l1"], 286.0)
+        self.assertEqual(rec["voltage_ac_l2"], 285.4)
+        self.assertEqual(rec["voltage_ac_l3"], 286.9)
+        self.assertEqual(rec["voltage_dc"], 580.3)
+        self.assertEqual(rec["kW"], 21.05)
+        result = validate(rec)
+        self.assertTrue(result.is_valid)
+        self.assertNotIn("UNKNOWN_FIELD", [w.code for w in result.warnings])
+
+    def test_huawei_rows_without_kpis_stay_backcompat(self):
+        csv_data = (
+            "timestamp,power,inverter_state,run_state\n"
+            "2026-02-09 12:00:00,10,512,1\n"
+        )
+        rec = transform(csv_data, source="huawei")[0]
+        self.assertEqual(rec["error_type"], "normal")
+        for key in ("voltage_ac_l1", "voltage_ac_l2", "voltage_ac_l3", "voltage_dc", "kW"):
+            self.assertNotIn(key, rec)
+
+    def test_sungrow_per_phase_emission_with_aggregates(self):
+        payload = """
+        {
+          "device_id": "SG-110CX",
+          "data_points": [
+            {
+              "timestamp": "2026-02-09T12:00:00Z",
+              "active_power": 22000.0,
+              "status_code": 3,
+              "voltage_a": 236.8, "voltage_b": 236.1, "voltage_c": 236.6,
+              "current_a": 31.0, "current_b": 30.5, "current_c": 30.9,
+              "frequency": 50.0
+            }
+          ]
+        }
+        """
+        rows = transform(payload, source="sungrow")
+        self.assertEqual(len(rows), 1)
+        rec = rows[0]
+        # Per-phase values emitted
+        self.assertEqual(rec["voltage_ac_l1"], 236.8)
+        self.assertEqual(rec["voltage_ac_l2"], 236.1)
+        self.assertEqual(rec["voltage_ac_l3"], 236.6)
+        self.assertEqual(rec["current_ac_l1"], 31.0)
+        self.assertEqual(rec["current_ac_l2"], 30.5)
+        self.assertEqual(rec["current_ac_l3"], 30.9)
+        # Aggregates retained for back-compat (mean voltage / summed current)
+        self.assertAlmostEqual(rec["voltage_ac"], (236.8 + 236.1 + 236.6) / 3.0)
+        self.assertAlmostEqual(rec["current_ac"], 31.0 + 30.5 + 30.9)
+        # OEM device status code preserved via oem_error_code
+        self.assertEqual(rec["error_type"], "normal")
+        self.assertEqual(rec["oem_error_code"], "3")
+        result = validate(rec)
+        self.assertTrue(result.is_valid)
+        self.assertNotIn("UNKNOWN_FIELD", [w.code for w in result.warnings])
+
+
 if __name__ == "__main__":
     unittest.main()

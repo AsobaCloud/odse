@@ -102,7 +102,7 @@ PROFILES = {
 SCHEMA_FIELDS = frozenset({
     # Core
     "timestamp", "kWh", "billed_kWh", "forecast_kWh", "direction", "end_use",
-    "fuel_type", "error_type", "error_code",
+    "fuel_type", "error_type", "error_code", "oem_error_code",
     # Power / electrical (SEP-049)
     "kW", "kVAr", "kVA", "kVArh", "PF",
     "voltage_ac", "voltage_ac_l1", "voltage_ac_l2", "voltage_ac_l3",

@@ -202,12 +202,33 @@ class HuaweiTransformer(BaseTransformer):
             )
             run_state = _to_int(_first_value(row, ["run_state", "Running State", "Run State"]))
 
+            # FusionSolar getDevHistoryKpi electrical KPIs (SEP-051)
+            voltage_ac_l1 = _to_float(_first_value(row, ["a_u", "A_u"]))
+            voltage_ac_l2 = _to_float(_first_value(row, ["b_u", "B_u"]))
+            voltage_ac_l3 = _to_float(_first_value(row, ["c_u", "C_u"]))
+            voltage_dc = _to_float(_first_value(row, ["pv1_u", "PV1_u"]))
+            active_power_kw = _to_float(
+                _first_value(row, ["active_power", "Active Power"])
+            )
+
             record: Dict[str, Any] = {
                 "timestamp": iso_ts,
                 "kWh": max((power_kw or 0.0) * interval_hours, 0.0),
                 "error_type": self._map_error_code(inverter_state, run_state),
                 "error_code": "unknown" if inverter_state is None else str(inverter_state),
             }
+            # SEP-051: FusionSolar per-phase AC voltages, DC string voltage,
+            # and interval active power KPIs
+            if voltage_ac_l1 is not None:
+                record["voltage_ac_l1"] = voltage_ac_l1
+            if voltage_ac_l2 is not None:
+                record["voltage_ac_l2"] = voltage_ac_l2
+            if voltage_ac_l3 is not None:
+                record["voltage_ac_l3"] = voltage_ac_l3
+            if voltage_dc is not None:
+                record["voltage_dc"] = voltage_dc
+            if active_power_kw is not None:
+                record["kW"] = active_power_kw
             if asset_id:
                 record["asset_id"] = asset_id
             records.append(record)
@@ -1089,20 +1110,33 @@ class SungrowTransformer(BaseTransformer):
                     elif (p_w is not None) and (s_va is not None) and s_va > 0:
                         rec["PF"] = max(0.0, min(1.0, p_w / s_va))
                     
-                    # AC electrical parameters (3-phase averaging/summing)
+                    # AC electrical parameters (per-phase values + 3-phase
+                    # aggregate; SEP-051: emit l1/l2/l3, retain aggregates)
                     v_a = _to_float(point.get("voltage_a"))
                     v_b = _to_float(point.get("voltage_b"))
                     v_c = _to_float(point.get("voltage_c"))
                     voltages = [v for v in [v_a, v_b, v_c] if v is not None and v > 0]
                     if voltages:
                         rec["voltage_ac"] = sum(voltages) / len(voltages)
-                    
+                    if v_a is not None and v_a > 0:
+                        rec["voltage_ac_l1"] = v_a
+                    if v_b is not None and v_b > 0:
+                        rec["voltage_ac_l2"] = v_b
+                    if v_c is not None and v_c > 0:
+                        rec["voltage_ac_l3"] = v_c
+
                     i_a = _to_float(point.get("current_a"))
                     i_b = _to_float(point.get("current_b"))
                     i_c = _to_float(point.get("current_c"))
                     currents = [i for i in [i_a, i_b, i_c] if i is not None]
                     if currents:
                         rec["current_ac"] = sum(currents)
+                    if i_a is not None:
+                        rec["current_ac_l1"] = i_a
+                    if i_b is not None:
+                        rec["current_ac_l2"] = i_b
+                    if i_c is not None:
+                        rec["current_ac_l3"] = i_c
                     
                     freq = _to_float(point.get("frequency"))
                     if freq is not None:

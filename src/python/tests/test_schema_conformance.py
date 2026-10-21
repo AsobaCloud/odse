@@ -21,12 +21,16 @@ FIXTURE_DIR = REPO_ROOT / "examples" / "data"
 # (source key, fixture file) — real fixture files from examples/data (SEP-037)
 FIXTURE_FILE_TRANSFORMS = [
     ("huawei", "huawei_fusionsolar_24h.csv"),
+    # SEP-051: FusionSolar getDevHistoryKpi electrical-KPI fixture, incl. a
+    # grid over-voltage warning event (inverter_state 513 at midday peak)
+    ("huawei", "huawei_fusionsolar_kpi_24h.csv"),
 ]
 
 # (source key, inline payload, transform kwargs) — payloads mirror
 # tests/test_transformer_runtime.py shapes for OEMs whose example fixtures
 # require API response formats (JSON) not present in examples/data yet.
-# TODO (SEP-051): replace with real JSON fixture files as they land.
+# TODO: replace enphase/solaredge inline payloads with real JSON fixture
+# files as they land.
 INLINE_PAYLOAD_TRANSFORMS = [
     (
         "enphase",
@@ -41,6 +45,30 @@ INLINE_PAYLOAD_TRANSFORMS = [
         "Update Time,Generation(kWh),Device State,Power(W)\n"
         "2026-02-09 12:00:00,100.0,Operating,500\n"
         "2026-02-09 12:05:00,100.6,Operating,600\n",
+        {},
+    ),
+    # SEP-051: Sungrow device_telemetry with per-phase values and OEM status
+    # code (exercises voltage_ac_l1/l2/l3, current_ac_l1/l2/l3, aggregates,
+    # and oem_error_code)
+    (
+        "sungrow",
+        json.dumps({
+            "device_id": "SG-110CX",
+            "data_points": [
+                {
+                    "timestamp": "2026-02-09T12:00:00Z",
+                    "active_power": 22000.0,
+                    "status_code": 3,
+                    "voltage_a": 236.8,
+                    "voltage_b": 236.1,
+                    "voltage_c": 236.6,
+                    "current_a": 31.0,
+                    "current_b": 30.5,
+                    "current_c": 30.9,
+                    "frequency": 50.0,
+                },
+            ],
+        }),
         {},
     ),
 ]

@@ -40,6 +40,27 @@ input_schema:
       aliases: ["Irradiance", "POA Irradiance"]
       type: float
       required: false
+    # FusionSolar getDevHistoryKpi electrical KPIs (SEP-051)
+    - name: a_u
+      aliases: ["A_u"]
+      type: float
+      required: false
+    - name: b_u
+      aliases: ["B_u"]
+      type: float
+      required: false
+    - name: c_u
+      aliases: ["C_u"]
+      type: float
+      required: false
+    - name: pv1_u
+      aliases: ["PV1_u"]
+      type: float
+      required: false
+    - name: active_power
+      aliases: ["Active Power"]
+      type: float
+      required: false
 
 output_mapping:
   timestamp:
