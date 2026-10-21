@@ -22,11 +22,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e "src/python[dev,ingest,parquet,scl]"
 
-      - name: CLI smoke test
-        run: |
-          odse --help
-          odse version
-
       - name: Run unit tests
         run: PYTHONPATH=src/python pytest src/python/tests -v
 

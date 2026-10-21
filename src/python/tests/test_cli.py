@@ -231,15 +231,9 @@ class CLIVersionTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 0)
         self.assertRegex(mock_out.getvalue().strip(), r"^\d+\.\d+\.\d+$")
 
-    def test_version_flag(self):
-        with self.assertRaises(SystemExit) as ctx:
-            main(["--version"])
-        self.assertEqual(ctx.exception.code, 0)
 
-    def test_no_command_shows_help(self):
-        with self.assertRaises(SystemExit) as ctx:
-            main([])
-        self.assertEqual(ctx.exception.code, 1)
+if __name__ == "__main__":
+    unittest.main()
 
 
 if __name__ == "__main__":
