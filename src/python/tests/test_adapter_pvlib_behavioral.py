@@ -195,7 +195,7 @@ def test_bidirectional_roundtrip_fidelity():
     # Check first record fidelity
     rec0 = exported["telemetry"][0]
     assert rec0["timestamp"] == "2026-06-01T12:00:00Z"
-    assert rec0["active_power_kW"] == 4500.0
+    assert rec0["kW"] == 4500.0
     assert rec0["kWh"] == 375.0
     assert rec0["poa_irradiance"] == 920.0
     assert rec0["ambient_temperature_c"] == 28.5

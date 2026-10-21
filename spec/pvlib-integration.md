@@ -18,7 +18,7 @@ The adapter maps between canonical ODS-E schema attributes and standard `pvlib` 
 
 | ODS-E Canonical Key | Target `pvlib` Column Name | Unit / Type | Description |
 |---|---|---|---|
-| `active_power_kW` | `p_mp` | kW (float) | AC Active Power Output |
+| `kW` | `p_mp` | kW (float) | AC Active Power Output |
 | `kWh` | `ac_energy` | kWh (float) | Cumulative AC Energy |
 | `poa_irradiance` | `poa_global` | W/m² (float) | Plane-of-Array Irradiance |
 | `ghi` | `ghi` | W/m² (float) | Global Horizontal Irradiance |
@@ -27,8 +27,8 @@ The adapter maps between canonical ODS-E schema attributes and standard `pvlib` 
 | `ambient_temperature_c` | `temp_air` | °C (float) | Ambient Temperature |
 | `module_temperature_c` | `temp_cell` | °C (float) | Module / Cell Temperature |
 | `wind_speed_ms` | `wind_speed` | m/s (float) | Wind Speed |
-| `dc_voltage_v` | `v_dc` | V (float) | Array DC Voltage |
-| `dc_current_a` | `i_dc` | A (float) | Array DC Current |
+| `voltage_dc` | `v_dc` | V (float) | Array DC Voltage |
+| `current_dc` | `i_dc` | A (float) | Array DC Current |
 
 ---
 
@@ -96,21 +96,21 @@ When integrating telemetry pipelines with `pvlib`, discrepancies in sensor loggi
 * **Symptom:** Downstream `pvlib.ModelChain` or inverter models fail with `KeyError: 'p_mp'`.
 * **Root Cause:**
   - Many SCADA loggers and utility meters record 5-minute or 15-minute interval cumulative energy (`kWh`), but do not log instantaneous AC active power (`kW`).
-  - ODS-E canonical specification strictly maps `kWh` $\rightarrow$ `ac_energy` and `active_power_kW` $\rightarrow$ `p_mp`.
-  - The adapter does not guess or invent data: if `active_power_kW` is not in the source record, `p_mp` will not exist in the DataFrame.
+  - ODS-E canonical specification strictly maps `kWh` $\rightarrow$ `ac_energy` and `kW` $\rightarrow$ `p_mp`.
+  - The adapter does not guess or invent data: if `kW` is not in the source record, `p_mp` will not exist in the DataFrame.
 * **Troubleshooting & Fix:**
   - If your inverter logger only outputs `kWh`, calculate active power prior to conversion:
     $$\text{active\_power\_kW} = \frac{\text{kWh}}{\text{interval\_hours}}$$
-    *(e.g., for 5-minute data: `active_power_kW = kWh * 12.0`)*.
-  - Ensure the key `active_power_kW` is added to your ODS-E payload before calling `odse_to_pvlib()`.
+    *(e.g., for 5-minute data: `kW = kWh * 12.0`)*.
+  - Ensure the key `kW` is added to your ODS-E payload before calling `odse_to_pvlib()`.
 
 ### Edge Case 2: OEM Casing & Non-Standard Key Passthrough
 * **Symptom:** Columns like `active_power_kw` (lowercase `w`) or `active_power` (in Watts) remain unchanged in the DataFrame and do not become `p_mp`.
 * **Root Cause:**
-  - ODS-E canonical fields use explicit camelCase unit suffixes (`active_power_kW`, `dc_voltage_v`, `dc_current_a`).
+  - ODS-E canonical fields use explicit camelCase unit suffixes (`kW`, `voltage_dc`, `current_dc`).
   - To prevent accidental data loss, `odse_to_pvlib` preserves all unmapped or custom columns (passthrough behavior) without raising an error.
 * **Troubleshooting & Fix:**
-  - Check your transform configuration (`transforms/*.yaml`). Ensure the target field is named `active_power_kW`.
+  - Check your transform configuration (`transforms/*.yaml`). Ensure the target field is named `kW`.
   - Check `df.columns`: if you see `active_power_kw` or `active_power`, your upstream transform has not yet normalized the key to canonical ODS-E.
 
 ### Edge Case 3: Plane-of-Array (`poa_irradiance`) vs. Horizontal Irradiance (`ghi`)

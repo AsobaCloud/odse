@@ -58,7 +58,13 @@ except ImportError:
 
 # Canonical bidirectional variable mapping matrix
 ODSE_TO_PVLIB_MAP: Dict[str, str] = {
+    # Legacy input keys (SEP-050): accepted on input, deprecated;
+    # canonical keys below win on round-trip output.
     "active_power_kW": "p_mp",
+    "dc_voltage_v": "v_dc",
+    "dc_current_a": "i_dc",
+    # Canonical ODS-E keys (SEP-049)
+    "kW": "p_mp",
     "kWh": "ac_energy",
     "poa_irradiance": "poa_global",
     "ghi": "ghi",
@@ -67,8 +73,8 @@ ODSE_TO_PVLIB_MAP: Dict[str, str] = {
     "ambient_temperature_c": "temp_air",
     "module_temperature_c": "temp_cell",
     "wind_speed_ms": "wind_speed",
-    "dc_voltage_v": "v_dc",
-    "dc_current_a": "i_dc",
+    "voltage_dc": "v_dc",
+    "current_dc": "i_dc",
 }
 
 PVLIB_TO_ODSE_MAP: Dict[str, str] = {v: k for k, v in ODSE_TO_PVLIB_MAP.items()}
