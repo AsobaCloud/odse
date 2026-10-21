@@ -96,6 +96,68 @@ PROFILES = {
 }
 
 
+# Canonical ODS-E energy-timeseries fields (SEP-049).
+# Keep in sync with schemas/energy-timeseries.json; parity is enforced by
+# tests/test_schema_conformance.py.
+SCHEMA_FIELDS = frozenset({
+    # Core
+    "timestamp", "kWh", "billed_kWh", "forecast_kWh", "direction", "end_use",
+    "fuel_type", "error_type", "error_code",
+    # Power / electrical (SEP-049)
+    "kW", "kVAr", "kVA", "kVArh", "PF",
+    "voltage_ac", "voltage_ac_l1", "voltage_ac_l2", "voltage_ac_l3",
+    "current_ac", "current_ac_l1", "current_ac_l2", "current_ac_l3",
+    "frequency", "voltage_dc", "current_dc",
+    "temperature", "ambient_temperature_c", "module_temperature_c",
+    "poa_irradiance", "ghi", "dni", "dhi", "wind_speed_ms",
+    # Curtailment
+    "curtailment_flag", "curtailment_type", "curtailed_kWh",
+    "curtailment_instruction_id",
+    # Storage / battery
+    "soc", "soh", "charge_kWh", "discharge_kWh", "cycle_count",
+    "dispatch_mode", "cell_voltage_max_v", "cell_voltage_min_v",
+    "cell_temp_max_c", "cell_temp_min_c",
+    # Wind
+    "rotor_rpm", "nacelle_direction_deg", "blade_pitch_deg",
+    # Market / settlement
+    "seller_party_id", "buyer_party_id", "network_operator_id",
+    "wheeling_agent_id", "balance_responsible_party_id",
+    "injection_point_id", "offtake_point_id",
+    "settlement_period_start", "settlement_period_end",
+    "settlement_type", "loss_factor", "contract_reference",
+    "imbalance_kWh", "daa_reference",
+    # Tariff
+    "tariff_schedule_id", "tariff_period", "tariff_currency",
+    "tariff_version_effective_at", "energy_charge_component",
+    "network_charge_component", "distribution_charge_component",
+    "transmission_charge_component", "generation_charge_component",
+    "ancillary_service_charge_component", "environmental_levy_component",
+    "non_bypassable_charge_component", "billing_period", "billing_status",
+    # Attributes / wheeling
+    "renewable_attribute_id", "certificate_standard", "verification_status",
+    "wheeling_path_id", "wheeling_type", "wheeling_status",
+    "carbon_intensity_gCO2_per_kWh",
+})
+
+
+def _check_unknown_fields(data: dict) -> List[ValidationError]:
+    """Warn on keys outside the canonical schema (SEP-049).
+
+    Non-fatal: legacy or pre-adoption records remain valid; the warning
+    surfaces drift so newly emitted fields get schema'd (see
+    tests/test_schema_conformance.py).
+    """
+    unknown = [k for k in data.keys() if k not in SCHEMA_FIELDS]
+    return [
+        ValidationError(
+            path=f"$.{k}",
+            message=f"Field '{k}' is not defined in the ODS-E energy-timeseries schema",
+            code="UNKNOWN_FIELD",
+        )
+        for k in sorted(unknown)
+    ]
+
+
 def validate(
     data: Union[dict, str, Path],
     level: str = "schema",
@@ -131,6 +193,9 @@ def validate(
 
     # Schema validation
     errors.extend(_validate_schema(data))
+
+    # Unknown-field warnings (SEP-049): keys outside the canonical schema
+    warnings.extend(_check_unknown_fields(data))
 
     # Profile validation
     if profile is not None and not errors:

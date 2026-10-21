@@ -39,6 +39,101 @@
       "maximum": 1,
       "description": "Power factor"
     },
+    "kW": {
+      "type": "number",
+      "description": "Active power in kilowatts at the measurement interval"
+    },
+    "kVAr": {
+      "type": "number",
+      "description": "Reactive power in kilovars at the measurement interval"
+    },
+    "voltage_ac": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Aggregate AC voltage in volts; mean across phases when per-phase fields are present"
+    },
+    "voltage_ac_l1": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L1 (A) AC voltage in volts"
+    },
+    "voltage_ac_l2": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L2 (B) AC voltage in volts"
+    },
+    "voltage_ac_l3": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L3 (C) AC voltage in volts"
+    },
+    "current_ac": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Aggregate AC current in amperes; sum across phases when per-phase fields are present"
+    },
+    "current_ac_l1": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L1 (A) AC current in amperes"
+    },
+    "current_ac_l2": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L2 (B) AC current in amperes"
+    },
+    "current_ac_l3": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Phase L3 (C) AC current in amperes"
+    },
+    "frequency": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Grid frequency in hertz"
+    },
+    "voltage_dc": {
+      "type": "number",
+      "minimum": 0,
+      "description": "DC (string or circuit) voltage in volts"
+    },
+    "current_dc": {
+      "type": "number",
+      "minimum": 0,
+      "description": "DC current in amperes"
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Device (e.g. inverter) temperature in degrees Celsius"
+    },
+    "ambient_temperature_c": {
+      "type": "number",
+      "description": "Ambient air temperature in degrees Celsius"
+    },
+    "module_temperature_c": {
+      "type": "number",
+      "description": "PV module temperature in degrees Celsius"
+    },
+    "poa_irradiance": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Plane-of-array irradiance in watts per square meter"
+    },
+    "ghi": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Global horizontal irradiance in watts per square meter"
+    },
+    "dni": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Direct normal irradiance in watts per square meter"
+    },
+    "dhi": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Diffuse horizontal irradiance in watts per square meter"
+    },
     "direction": {
       "type": "string",
       "enum": ["generation", "consumption", "net"],
