@@ -10,6 +10,7 @@ needs to be cloned.
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/mzansi_erp_colab_demo.ipynb) **Mzansi ERP Enrichment Demo** | 7 ERP schemas → equipment register → PR underperformance triage → financial impact |
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/mzansi_forecasting_colab_demo.ipynb) **Mzansi Solar Forecasting Demo** | Energy balance → ODS-E timeseries → SARIMAX 30-day forecast → grid purchase planning |
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/winter_storm_fern_colab_demo.ipynb) **Winter Storm Fern Demo** | Storm blackout → validate → NREL ResStock join → neighborhood vulnerability map |
+| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/durban_feeder_grid_colab_demo.ipynb) **Durban Feeder Grid Modeling Demo** | Multi-site 11 kV feeder → pvlib clear-sky physics → -1.66 MW backfeed detection → BESS dispatch & TOU arbitrage |
 
 ---
 
@@ -134,3 +135,41 @@ NREL ResStock 2024 R2 (TX baseline) from the OEDI data lake; boundaries are Cens
 The transform maps the raw export onto `energy-timeseries` fields that became canonical in
 ODS-E 0.11.0 — `kW` and `frequency` (SEP-049), plus `asset_id` (SEP-052) — and the whole batch
 is validated through the `odse` runtime (`validate_batch`, strict SEP-049 vocabulary).
+
+---
+
+## Durban Feeder Grid Modeling Demo
+
+Simulates multi-site power flows across an 11 kV municipal distribution feeder in Durban, KZN connecting 5.55 MWp of solar PV and 3.0 MW / 6.0 MWh of BESS capacity across three C&I facilities:
+1. **Thokoza Logistics Park**: 1.2 MW Solar PV + 1.0 MW / 2.0 MWh BESS
+2. **Khanyisa Manufacturing Hub**: 3.6 MW Solar PV + 2.0 MW / 4.0 MWh BESS
+3. **Simunye Cold Storage**: 750 kW Solar PV (no storage)
+
+Demonstrates how `odse.adapters.pvlib` standardizes multi-inverter telemetry into `pvlib`-compatible DataFrames, calculates Ineichen clear-sky POA irradiance physics baselines, identifies severe midday reverse power flow backfeed (-1.66 MW peak, 108.8 hours), coordinates BESS charging/discharging to cut reverse flow hours by 84.7%, audits Eskom Megaflex TOU arbitrage savings (R 1.1M in 6 months), and exports modeled telemetry back to canonical ODS-E JSON via `pvlib_to_odse()`.
+
+### Contents
+
+| File | Description |
+|---|---|
+| `durban_feeder_grid_colab_demo.ipynb` | Self-contained Colab notebook modeling distribution feeder load flow and BESS dispatch |
+| `data/thokoza_telemetry_6mo.csv.gz` | 5-min inverter telemetry × 5 inverters (1.2 MW PV) |
+| `data/thokoza_bess_6mo.csv.gz` | 5-min BESS operational telemetry (1.0 MW / 2.0 MWh LFP) |
+| `data/thokoza_grid_load_6mo.csv.gz` | 5-min building load, solar gen, BESS power, net grid draw |
+| `data/khanyisa_telemetry_6mo.csv.gz` | 5-min inverter telemetry × 13 inverters (3.6 MW PV) |
+| `data/khanyisa_bess_6mo.csv.gz` | 5-min BESS operational telemetry (2.0 MW / 4.0 MWh LFP) |
+| `data/khanyisa_grid_load_6mo.csv.gz` | 5-min building load, solar gen, BESS power, net grid draw |
+| `data/simunye_telemetry_6mo.csv.gz` | 5-min inverter telemetry × 3 inverters (750 kW PV) |
+| `data/simunye_grid_load_6mo.csv.gz` | 5-min building load, solar gen, net grid draw |
+
+### Usage
+
+- **Colab:** click the badge above.
+- **Local:**
+  ```bash
+  pip install odse pandas matplotlib pvlib
+  jupyter lab colab/durban_feeder_grid_colab_demo.ipynb
+  ```
+
+### Provenance
+
+Synthesized from Durban industrial feeder SCADA baselines and solar irradiance conditions in KwaZulu-Natal. Validated against the `odse.validator.validate_batch` schema checker and roundtrip-tested with the `odse.adapters.pvlib` bi-directional adapter (`odse_to_pvlib` and `pvlib_to_odse`).
