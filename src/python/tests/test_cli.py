@@ -218,6 +218,50 @@ class CLIValidateTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 1)
 
 
+class CLIDetectTests(unittest.TestCase):
+    """CLI-1: odse detect writes anomaly JSON (SEP-053)."""
+
+    def test_detect_writes_anomalies_json(self):
+        pytest = __import__("pytest")
+        pytest.importorskip("pandas")
+
+        csv_content = (
+            "timestamp,asset_id,power,irradiance,ambient_temperature_c,"
+            "wind_speed,temperature\n"
+            "2026-06-01T12:00:00Z,INV-A,0.0,800.0,28.0,1.0,45.0\n"
+            "2026-06-01T12:05:00Z,INV-A,250.0,800.0,28.0,1.0,45.0\n"
+        )
+        csv_file = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        )
+        csv_file.write(csv_content)
+        csv_file.close()
+        out_path = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        out_path.close()
+
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                main([
+                    "detect",
+                    "--input",
+                    csv_file.name,
+                    "--rated-kw",
+                    "330",
+                    "--out-anomalies",
+                    out_path.name,
+                ])
+            self.assertEqual(ctx.exception.code, 0)
+            with open(out_path.name) as f:
+                anomalies = json.load(f)
+            self.assertIsInstance(anomalies, list)
+            self.assertGreaterEqual(len(anomalies), 1)
+            self.assertIn("detector_type", anomalies[0])
+            self.assertIn("residual_value", anomalies[0])
+        finally:
+            os.unlink(csv_file.name)
+            os.unlink(out_path.name)
+
+
 class CLIVersionTests(unittest.TestCase):
     """Tests for CLI version and help."""
 
@@ -230,10 +274,6 @@ class CLIVersionTests(unittest.TestCase):
                 main(["version"])
             self.assertEqual(ctx.exception.code, 0)
         self.assertRegex(mock_out.getvalue().strip(), r"^\d+\.\d+\.\d+$")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 if __name__ == "__main__":

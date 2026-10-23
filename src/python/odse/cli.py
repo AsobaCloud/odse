@@ -153,6 +153,40 @@ def main(argv=None):
         help="Drop rows where error_type indicates fault or offline",
     )
 
+    # --- detect (SEP-053) ---
+    p_detect = subparsers.add_parser(
+        "detect",
+        help="Level 2 physical residual anomaly detection",
+    )
+    p_detect.add_argument(
+        "--input",
+        "-i",
+        required=True,
+        help="Input telemetry (.csv, .csv.gz, .parquet, .json)",
+    )
+    p_detect.add_argument(
+        "--rated-kw",
+        type=float,
+        required=True,
+        help="Rated AC capacity in kW (e.g. 330)",
+    )
+    p_detect.add_argument(
+        "--temp-coeff",
+        type=float,
+        default=-0.0035,
+        help="Module temperature coefficient (default: -0.0035)",
+    )
+    p_detect.add_argument(
+        "--out-anomalies",
+        "-o",
+        required=True,
+        help="Output JSON path for anomaly events",
+    )
+    p_detect.add_argument(
+        "--weather",
+        help="Optional hourly weather CSV/CSV.GZ with temp column for ambient join",
+    )
+
     # --- to-openoa ---
     p_openoa = subparsers.add_parser(
         "to-openoa",
@@ -209,6 +243,8 @@ def main(argv=None):
         _cmd_validate(args)
     elif args.command == "ingest":
         _cmd_ingest(args)
+    elif args.command == "detect":
+        _cmd_detect(args)
     elif args.command in ("to-pvlib", "pvlib"):
         _cmd_to_pvlib(args)
     elif args.command in ("to-openoa", "openoa"):
@@ -216,6 +252,137 @@ def main(argv=None):
     elif args.command == "version":
         print(__version__)
         sys.exit(0)
+
+
+def _cmd_detect(args):
+    """Level 2 physical residual anomaly detection (SEP-053)."""
+    try:
+        import pandas as pd
+    except ImportError:
+        print(
+            "Error: pandas is required for detect. Install with: pip install 'odse[dataframe]'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        df = _load_detect_telemetry(input_path)
+    except Exception as exc:
+        print(f"Error: failed to load telemetry: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.weather:
+        weather_path = Path(args.weather)
+        if not weather_path.exists():
+            print(f"Error: weather file not found: {args.weather}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            df = _join_weather_ambient(df, weather_path)
+        except Exception as exc:
+            print(f"Error: weather join failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        from .physics import inject_physical_residuals
+        from .detectors import PhysicalHeuristicDetector
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        enriched = inject_physical_residuals(
+            df,
+            rated_capacity_kw=args.rated_kw,
+            temp_coeff=args.temp_coeff,
+        )
+        detector = PhysicalHeuristicDetector()
+        anomalies = detector.detect(enriched)
+    except Exception as exc:
+        print(f"Error: detection failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    records = []
+    for row in anomalies.to_dict(orient="records"):
+        clean = {}
+        for k, v in row.items():
+            if hasattr(v, "isoformat"):
+                clean[k] = v.isoformat()
+            elif pd.isna(v) if not isinstance(v, (list, dict)) else False:
+                clean[k] = None
+            else:
+                clean[k] = v
+        records.append(clean)
+
+    out_path = Path(args.out_anomalies)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    print(f"Wrote {len(records)} anomalies to {out_path}", file=sys.stderr)
+    sys.exit(0)
+
+
+def _load_detect_telemetry(path: Path):
+    """Load CSV/CSV.GZ/Parquet/JSON telemetry for detect."""
+    import pandas as pd
+
+    suffix = path.suffix.lower()
+    name = path.name.lower()
+    if name.endswith(".csv.gz") or suffix == ".gz":
+        return pd.read_csv(path)
+    if suffix == ".csv":
+        return pd.read_csv(path)
+    if suffix == ".parquet":
+        return pd.read_parquet(path)
+    if suffix == ".json":
+        with path.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if isinstance(payload, list):
+            return pd.DataFrame(payload)
+        if isinstance(payload, dict):
+            records = payload.get("telemetry", payload.get("data", payload.get("records")))
+            if records is None:
+                return pd.DataFrame([payload])
+            return pd.DataFrame(records)
+        raise ValueError("Unsupported JSON structure for detect input")
+    raise ValueError(f"Unsupported input format: {path.suffix}")
+
+
+def _join_weather_ambient(df, weather_path: Path):
+    """As-of merge hourly weather temp onto telemetry as ambient_temperature_c."""
+    import pandas as pd
+
+    weather = pd.read_csv(weather_path)
+    if "temp" not in weather.columns:
+        raise ValueError("weather file must contain a 'temp' column")
+    ts_col = "timestamp" if "timestamp" in weather.columns else None
+    if ts_col is None:
+        raise ValueError("weather file must contain a 'timestamp' column")
+
+    tel = df.copy()
+    if "timestamp" not in tel.columns:
+        raise ValueError("telemetry must contain a 'timestamp' column for weather join")
+
+    tel["_ts"] = pd.to_datetime(tel["timestamp"], utc=True)
+    weather = weather.copy()
+    weather["_ts"] = pd.to_datetime(weather[ts_col], utc=True)
+    weather = weather.sort_values("_ts")
+    tel = tel.sort_values("_ts")
+
+    merged = pd.merge_asof(
+        tel,
+        weather[["_ts", "temp"]].rename(columns={"temp": "ambient_temperature_c"}),
+        on="_ts",
+        direction="backward",
+    )
+    merged = merged.drop(columns=["_ts"])
+    if merged["ambient_temperature_c"].isna().any():
+        # forward-fill any leading gaps from asof
+        merged["ambient_temperature_c"] = merged["ambient_temperature_c"].bfill().ffill()
+    return merged
 
 
 def _cmd_to_openoa(args):

@@ -71,7 +71,24 @@ df["temp_cell"] = cell_temp
 export_payload = pvlib_to_odse(df, site_id="solar-site-01", metadata=meta)
 ```
 
-### 4.2 CLI Command
+### 4.2 Physical residuals (SEP-053)
+
+Deterministic Faiman / expected-power residuals live in `odse.physics` (pure NumPy/Pandas; **does not** call the `pvlib` package). They are re-exported from this adapter for the SEP SDK path:
+
+```python
+from odse.adapters.pvlib import inject_physical_residuals
+
+df_enriched = inject_physical_residuals(
+    df,
+    rated_capacity_kw=330.0,
+    temp_coeff=-0.0035,
+)
+# adds t_cell_expected, p_expected, delta_p_norm[, delta_t_divergence]
+```
+
+Level 2 detectors (`odse.detectors`) and the `odse detect` CLI consume these residuals. See [SEP-053.md](SEP-053.md).
+
+### 4.3 CLI Command
 
 The ODS-E CLI provides a top-level `to-pvlib` command (also aliased as `pvlib`):
 

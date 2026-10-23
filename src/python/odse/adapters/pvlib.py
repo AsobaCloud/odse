@@ -87,6 +87,13 @@ LEGACY_INPUT_KEYS: frozenset = frozenset(
     {"active_power_kW", "dc_voltage_v", "dc_current_a"}
 )
 
+# SEP-053: re-export physics residuals (pure NumPy/Pandas; does not use pvlib).
+from odse.physics import (  # noqa: E402
+    compute_expected_ac_power,
+    compute_faiman_cell_temp,
+    inject_physical_residuals,
+)
+
 
 def _check_dependencies() -> None:
     """Ensure optional pandas dependency is installed."""

@@ -11,6 +11,7 @@ needs to be cloned.
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/mzansi_forecasting_colab_demo.ipynb) **Mzansi Solar Forecasting Demo** | Energy balance → ODS-E timeseries → SARIMAX 30-day forecast → grid purchase planning |
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/winter_storm_fern_colab_demo.ipynb) **Winter Storm Fern Demo** | Storm blackout → validate → NREL ResStock join → neighborhood vulnerability map |
 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/durban_feeder_grid_colab_demo.ipynb) **Durban Feeder Grid Modeling Demo** | Multi-site 11 kV feeder → pvlib clear-sky physics → -1.66 MW backfeed detection → BESS dispatch & TOU arbitrage |
+| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AsobaCloud/odse/blob/main/colab/thokoza_level2_detector_colab_demo.ipynb) **Thokoza Level 2 Detector Demo** | Physical residuals + BinaryDropout / Thermal / heuristic detectors on 1.2 MW logistics-park PV (SEP-053) |
 
 ---
 
@@ -173,3 +174,26 @@ Demonstrates how `odse.adapters.pvlib` standardizes multi-inverter telemetry int
 ### Provenance
 
 Synthesized from Durban industrial feeder SCADA baselines and solar irradiance conditions in KwaZulu-Natal. Validated against the `odse.validator.validate_batch` schema checker and roundtrip-tested with the `odse.adapters.pvlib` bi-directional adapter (`odse_to_pvlib` and `pvlib_to_odse`).
+
+---
+
+## Thokoza Level 2 Detector Demo (SEP-053)
+
+Zero-GPU Level 2 physical residual detection on **Thokoza Logistics Park** (1.2 MW PV on the Durban 11 kV feeder — not the Mzansi textile site). Injects Faiman / $P_{expected}$ residuals via `odse.adapters.pvlib.inject_physical_residuals`, then runs `BinaryDropoutDetector`, `ThermalDivergenceDetector`, and `PhysicalHeuristicDetector`.
+
+### Contents
+
+| File | Description |
+|---|---|
+| `thokoza_level2_detector_colab_demo.ipynb` | Colab notebook for SEP-053 Level 2 detectors |
+| `data/thokoza_telemetry_6mo.csv.gz` | 5-min inverter (+ BESS) telemetry |
+| `data/durban_weather_6mo.csv.gz` | Hourly ambient for Faiman cell temperature |
+
+### Usage
+
+- **Colab:** click the badge above.
+- **Local:**
+  ```bash
+  pip install "odse[detectors]>=0.12.0" matplotlib
+  jupyter lab colab/thokoza_level2_detector_colab_demo.ipynb
+  ```

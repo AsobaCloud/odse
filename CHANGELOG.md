@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and follows semantic versioning.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-23
+
+### Added
+- Deterministic physical residuals (`odse.physics`): Faiman cell temperature, expected AC power with European η curve, and `inject_physical_residuals` adding `t_cell_expected`, `p_expected`, `delta_p_norm`, `delta_t_divergence` (SEP-053, #69). Pure NumPy/Pandas; does not import the `pvlib` package. Re-exported from `odse.adapters.pvlib` for the SEP SDK import path.
+- Level 2 non-deep anomaly detectors (`odse.detectors`): `BinaryDropoutDetector`, `ThermalDivergenceDetector`, `RollingCUSUMDetector`, and composite `PhysicalHeuristicDetector` with standard `fit`/`score`/`detect` APIs (SEP-053, #69).
+- CLI `odse detect --input … --rated-kw … --out-anomalies …` with optional `--weather` ambient join (SEP-053, #69).
+- Spec `spec/SEP-053.md` and golden fleet AUROC ≥ 0.95 behavioral test on Mzansi/Sibaya `colab/data/mzansi_telemetry_6mo.csv.gz`.
+- Colab demo `colab/thokoza_level2_detector_colab_demo.ipynb`: Level 2 residual detection on Thokoza Logistics Park (1.2 MW, non-Mzansi feeder site).
+
 ## [0.11.0] - 2026-10-21
 
 ### Added
